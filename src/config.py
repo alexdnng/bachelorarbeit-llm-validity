@@ -1,0 +1,8 @@
+MODEL_NAME = "gpt-4.1-mini"
+
+TEMPERATURES = [0.2, 0.8]
+TOP_P_VALUES = [0.8, 1.0]
+
+MAX_TOKENS = 300
+
+N_RUNS_PER_SETTING = 5

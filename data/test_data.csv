@@ -1,3 +1,6 @@
 input,Extraversion,Agreeableness,Conscientiousness,Neuroticism,Openness
-"Person enjoys social events",0.9,0.6,0.5,0.3,0.7
-"Prefers solitude and reading",0.2,0.7,0.6,0.4,0.8
+"Enjoys social events but sometimes feels overwhelmed",0.6,0.6,0.5,0.5,0.7
+"Prefers solitude but occasionally seeks company",0.4,0.6,0.6,0.4,0.7
+"Often anxious yet actively participates socially",0.5,0.5,0.6,0.8,0.6
+"Highly disciplined but dislikes new experiences",0.3,0.6,0.9,0.4,0.3
+"Very open to new ideas but emotionally unstable",0.6,0.5,0.5,0.9,0.9

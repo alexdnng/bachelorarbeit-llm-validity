@@ -24,3 +24,20 @@ def generate_profile(prompt, temperature, top_p):
     )
 
     return response.choices[0].message.content
+
+def generate_behavior_from_traits(traits, temperature, top_p):
+    prompt = f"""
+You are given a person's Big Five personality traits.
+
+Extraversion: {traits['Extraversion']}
+Agreeableness: {traits['Agreeableness']}
+Conscientiousness: {traits['Conscientiousness']}
+Neuroticism: {traits['Neuroticism']}
+Openness: {traits['Openness']}
+
+Write a realistic and detailed description of this person's behavior in daily life.
+Focus on observable actions, habits, and social interactions.
+Do NOT mention numbers or trait labels.
+"""
+
+    return generate_profile(prompt, temperature, top_p)

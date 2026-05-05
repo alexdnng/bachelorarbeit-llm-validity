@@ -1,4 +1,10 @@
-from src.generation import generate_profile, generate_behavior_from_traits
+import sys
+import os
+
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from src.generation import generate_profile
 from src.evaluation import parse_traits, compute_mae
 from src.config import *
 from src.twin2k_loader import load_twin2k
@@ -13,46 +19,82 @@ print(">>> RUN_EXPERIMENT STARTED")
 
 def run():
     df = load_twin2k()
-    df = df.sample(20, random_state=42)  # 🔥 limit for faster testing
+    # TODO: twin2k_loader must provide a 'question' column with held-out questions for proper evaluation
+    df = df.sample(15, random_state=42)  # keep for testing
 
     results = []
 
     for temp_pred in TEMPERATURES:
         print(f"\n>>> Running temp_pred={temp_pred}")
-        for top_p in TOP_P_VALUES:
-            print(f">>> Running top_p={top_p}")
+        for reasoning in REASONING_MODES:
+            print(f">>> Running reasoning={reasoning}")
+            for top_p in [1.0]:  # fixed since focus is temperature + reasoning
+                print(f">>> Running top_p={top_p}")
 
-            temp_text = 0.8  # fixed for text generation
+                temp_text = 0.8  # fixed for text generation
 
-            predictions = []
-            ground_truth = []
+                predictions = []
+                ground_truth = []
 
-            for i, (_, row) in enumerate(df.iterrows()):
-                print(f"Processing sample {i+1}/{len(df)}")
+                for i, (_, row) in enumerate(df.iterrows()):
+                    print(f"Processing sample {i+1}/{len(df)}")
 
-                true_traits = {
-                    "Extraversion": row["Extraversion"],
-                    "Agreeableness": row["Agreeableness"],
-                    "Conscientiousness": row["Conscientiousness"],
-                    "Neuroticism": row["Neuroticism"],
-                    "Openness": row["Openness"]
-                }
+                    true_traits = {
+                        "Extraversion": row["Extraversion"],
+                        "Agreeableness": row["Agreeableness"],
+                        "Conscientiousness": row["Conscientiousness"],
+                        "Neuroticism": row["Neuroticism"],
+                        "Openness": row["Openness"]
+                    }
 
-                # STEP 1: generate behavior text
-                behavior_text = generate_behavior_from_traits(true_traits, temp_text, top_p)
+                    answers = []
 
-                # STEP 2: predict traits from behavior
-                prompt = f"""
-Based on the following behavior:
+                    if reasoning == "cot":
+                        reasoning_instruction = "Think step by step before answering."
+                    elif reasoning == "uncertain":
+                        reasoning_instruction = "Answer like a human with some uncertainty and variability."
+                    else:
+                        reasoning_instruction = "Answer directly."
 
-{behavior_text}
+                    for question in row["questions"]:
+                        prompt = f"""
+You are a digital twin of a person with the following personality traits:
+
+Extraversion: {true_traits['Extraversion']}
+Agreeableness: {true_traits['Agreeableness']}
+Conscientiousness: {true_traits['Conscientiousness']}
+Neuroticism: {true_traits['Neuroticism']}
+Openness: {true_traits['Openness']}
+
+Instruction:
+{reasoning_instruction}
+
+Answer the following question as this person would:
+
+{question}
+
+IMPORTANT:
+- Give a natural, realistic answer
+- Do not mention traits explicitly
+"""
+
+                        answer = generate_profile(prompt, temp_pred, top_p)
+                        answers.append(answer)
+
+                    # Combine all answers
+                    combined_text = "\n".join(answers)
+
+                    # STEP 2: reconstruct traits from ALL answers
+                    reconstruction_prompt = f"""
+Based on the following answers:
+
+{combined_text}
 
 Estimate Big Five personality traits (values between 0 and 1).
 
 IMPORTANT:
 - Output ONLY a single number per trait
-- Do NOT include ranges, ±, explanations, or text
-- Use decimal values between 0 and 1
+- No explanations
 
 Format:
 Extraversion: X
@@ -62,58 +104,78 @@ Neuroticism: X
 Openness: X
 """
 
-                generated = generate_profile(prompt, temp_pred, top_p)
-                pred_traits = parse_traits(generated)
+                    generated = generate_profile(reconstruction_prompt, temp_pred, top_p)
+                    pred_traits = parse_traits(generated)
 
-                # 🔥 FIX: ungültige Predictions rausfiltern
-                if len(pred_traits) != 5:
+                    # 🔥 FIX: ungültige Predictions rausfiltern
+                    if len(pred_traits) != 5:
+                        continue
+
+                    if any(v is None for v in pred_traits.values()):
+                        continue
+
+                    pred_values = list(pred_traits.values())
+                    true_values = list(true_traits.values())
+
+                    # Ensure numeric conversion
+                    pred_values = [float(v) for v in pred_values]
+                    true_values = [float(v) for v in true_values]
+
+                    predictions.append(pred_values)
+                    ground_truth.append(true_values)
+
+                    score = compute_mae(pred_traits, true_traits)
+
+                    results.append({
+                        "temperature": temp_pred,
+                        "temp_pred": temp_pred,
+                        "temp_text": temp_text,
+                        "top_p": top_p,
+                        "reasoning": reasoning,
+                        "input": combined_text,
+                        "generated": generated,
+                        "mae": score,
+                        "type": "sample"
+                    })
+
+                # 🔥 Safety checks before correlation
+                if len(predictions) < 5:
+                    print("⚠️ Too few valid samples – skipping correlation")
                     continue
 
-                if any(v is None for v in pred_traits.values()):
+                # Convert to numpy arrays
+                flat_pred = np.array(predictions, dtype=float).flatten()
+                flat_true = np.array(ground_truth, dtype=float).flatten()
+
+                # Remove NaNs explicitly
+                mask = ~np.isnan(flat_pred) & ~np.isnan(flat_true)
+                flat_pred = flat_pred[mask]
+                flat_true = flat_true[mask]
+
+                # Final safety checks
+                if len(flat_pred) < 2:
+                    print("⚠️ Not enough valid values after cleaning – skipping correlation")
                     continue
 
-                pred_values = list(pred_traits.values())
-                true_values = list(true_traits.values())
+                if np.std(flat_pred) == 0 or np.std(flat_true) == 0:
+                    print("⚠️ No variance after cleaning – skipping correlation")
+                    continue
 
-                predictions.append(pred_values)
-                ground_truth.append(true_values)
+                corr, _ = pearsonr(flat_pred, flat_true)
 
-                score = compute_mae(pred_traits, true_traits)
+                print(f"✅ Correlation computed: {corr}")
 
+                print(f"Saving aggregate: temp_pred={temp_pred}, reasoning={reasoning}, top_p={top_p}, corr={corr}, n={len(predictions)}")
                 results.append({
                     "temperature": temp_pred,
                     "temp_pred": temp_pred,
                     "temp_text": temp_text,
                     "top_p": top_p,
-                    "input": behavior_text,
-                    "generated": generated,
-                    "mae": score,
-                    "type": "sample"
+                    "reasoning": reasoning,
+                    "correlation": float(corr),
+                    "n_samples": len(predictions),
+                    "type": "aggregate"
                 })
-
-            # 🔥 Safety checks before correlation
-            if len(predictions) < 5:
-                print("⚠️ Too few valid samples – skipping correlation")
-                continue
-
-            flat_pred = np.array(predictions).flatten()
-            flat_true = np.array(ground_truth).flatten()
-
-            if len(set(flat_pred)) < 2:
-                print("⚠️ No variance in predictions – skipping correlation")
-                continue
-
-            corr, _ = pearsonr(flat_pred, flat_true)
-
-            results.append({
-                "temperature": temp_pred,
-                "temp_pred": temp_pred,
-                "temp_text": temp_text,
-                "top_p": top_p,
-                "correlation": corr,
-                "n_samples": len(predictions),
-                "type": "aggregate"
-            })
 
     return results
 

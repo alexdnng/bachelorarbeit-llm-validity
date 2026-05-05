@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os
 
 # 👉 Pfad zu deiner neuesten Datei anpassen
-FILE_PATH = "results/output_6.csv"  # 🔁 ggf. anpassen auf neueste Datei
+FILE_PATH = "results/output_7.csv"  # 🔁 ggf. anpassen auf neueste Datei
 
 
 # 🔧 1. Datei laden
@@ -43,6 +43,9 @@ if "correlation" not in df.columns:
     print("⚠️ Keine 'correlation' Spalte gefunden – Heatmap wird übersprungen")
 
 print("Anzahl agg rows:", len(agg))
+print("AGG COLUMNS:", agg.columns)
+print("AGG DTYPES:\n", agg.dtypes)
+print(agg.head())
 
 # -----------------------------
 # 📊 Durchschnitt nach temperature (MAE)
@@ -53,12 +56,15 @@ print("\n=== Durchschnitt MAE nach Temperature ===")
 print(temp_group)
 
 # -----------------------------
-# 📊 Durchschnitt nach top_p (MAE)
+# 📊 Durchschnitt nach reasoning (MAE)
 # -----------------------------
-top_p_group = samples.groupby("top_p")["mae"].mean().reset_index()
+if "reasoning" in samples.columns:
+    reasoning_group = samples.groupby("reasoning")["mae"].mean().reset_index()
 
-print("\n=== Durchschnitt MAE nach top_p ===")
-print(top_p_group)
+    print("\n=== Durchschnitt MAE nach Reasoning ===")
+    print(reasoning_group)
+else:
+    print("⚠️ 'reasoning' Spalte nicht gefunden – überspringe Reasoning-Analyse")
 
 # -----------------------------
 # 📊 Plot: Temperature vs MAE
@@ -74,43 +80,74 @@ plt.savefig("analysis/temperature_vs_mae.png")
 plt.close()
 
 # -----------------------------
-# 📊 Plot: top_p vs MAE
+# 📊 Plot: Reasoning vs MAE
 # -----------------------------
-plt.figure()
-plt.plot(top_p_group["top_p"], top_p_group["mae"], marker='o')
-plt.xlabel("Top_p")
-plt.ylabel("Mean MAE")
-plt.title("Effect of Top_p on MAE")
+if "reasoning" in samples.columns:
+    plt.figure()
+    plt.bar(reasoning_group["reasoning"], reasoning_group["mae"])
+    plt.xlabel("Reasoning Mode")
+    plt.ylabel("Mean MAE")
+    plt.title("Effect of Reasoning on MAE")
 
-plt.savefig("analysis/top_p_vs_mae.png")
-plt.close()
+    plt.savefig("analysis/reasoning_vs_mae.png")
+    plt.close()
 
 # -----------------------------
 # 🔥 NEU: Heatmap (Correlation)
 # -----------------------------
 # 🔥 Heatmap nur wenn correlation vorhanden
 if "correlation" in agg.columns and not agg.empty:
+    # Ensure numeric types for pivot axes
+    for col in ["temp_pred", "temperature", "correlation"]:
+        if col in agg.columns:
+            agg[col] = pd.to_numeric(agg[col], errors="coerce")
 
-    pivot = agg.pivot_table(
-        index="temp_pred" if "temp_pred" in agg.columns else "temperature",
-        columns="top_p",
+    # Drop rows with missing correlation or axes
+    pivot_index = "temp_pred" if "temp_pred" in agg.columns else "temperature"
+    if "reasoning" in agg.columns:
+        agg_clean = agg.dropna(subset=[pivot_index, "reasoning", "correlation"]).copy()
+    else:
+        print("⚠️ 'reasoning' fehlt für Heatmap")
+        agg_clean = pd.DataFrame()
+
+    print("Cleaned agg size:", len(agg_clean))
+
+    # Optionally: quick sanity assertion
+    assert not agg_clean.empty, "Keine gültigen Daten für Heatmap nach Cleaning"
+
+    pivot = agg_clean.pivot_table(
+        index=pivot_index,
+        columns="reasoning",
         values="correlation",
         aggfunc="mean"
     )
 
-    plt.figure()
-    plt.imshow(pivot, aspect='auto')
-    plt.colorbar(label="Correlation")
+    # Sort axes for consistent plotting
+    pivot = pivot.sort_index().sort_index(axis=1)
 
-    plt.xticks(range(len(pivot.columns)), pivot.columns)
-    plt.yticks(range(len(pivot.index)), pivot.index)
+    print("PIVOT TABLE:\n", pivot)
 
-    plt.xlabel("top_p")
-    plt.ylabel("temp_pred / temperature")
-    plt.title("Correlation Heatmap")
+    if pivot.empty or pivot.isna().all().all():
+        print("⚠️ Pivot leer oder nur NaN – keine Heatmap möglich")
+    else:
+        plt.figure()
 
-    plt.savefig("analysis/heatmap_correlation.png")
-    plt.close()
+        # Replace NaN with a sentinel for visibility
+        data = pivot.fillna(0).values
+
+        im = plt.imshow(data, aspect='auto')
+        plt.colorbar(im, label="Correlation")
+
+        plt.xticks(range(len(pivot.columns)), [str(c) for c in pivot.columns])
+        plt.yticks(range(len(pivot.index)), [round(i, 3) for i in pivot.index])
+
+        plt.xlabel("Reasoning Mode")
+        plt.ylabel(pivot_index)
+        plt.title("Correlation Heatmap (Temperature × Reasoning)")
+
+        plt.tight_layout()
+        plt.savefig("analysis/heatmap_correlation.png")
+        plt.close()
 else:
     print("⚠️ Heatmap übersprungen (keine correlation Daten)")
 

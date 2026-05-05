@@ -2,21 +2,44 @@ import pandas as pd
 
 
 def load_twin2k():
-    df1 = pd.read_csv("data/mega_persona_summary_csv/wave 1 scores.csv")
-    df2 = pd.read_csv("data/mega_persona_summary_csv/wave 2 scores.csv")
-    df3 = pd.read_csv("data/mega_persona_summary_csv/wave 3 scores.csv")
+    """
+    Loads Twin-2K Wave 1 data and prepares it for the experiment.
 
-    df = pd.concat([df1, df2, df3], ignore_index=True)
+    Key decisions:
+    - Only Wave 1 is used (consistent Big Five measurement)
+    - Big Five traits are normalized to [0,1]
+    - A fixed set of standardized questions is attached to each person
+    """
+
+    # Load ONLY Wave 1 (cleanest personality ground truth)
+    df = pd.read_csv("data/mega_persona_summary_csv/wave 1 scores.csv")
+
+    # Fixed question set (same for every participant → ensures comparability)
+    QUESTIONS = [
+        "Do you enjoy being around other people?",
+        "Do you often feel anxious or stressed?",
+        "Do you like trying new things?",
+        "Do you plan ahead or act spontaneously?",
+        "Do you trust other people easily?",
+        "How do you usually spend your free time?",
+        "How do you react to unexpected problems?"
+    ]
 
     processed = []
 
     for _, row in df.iterrows():
         processed.append({
+            "id": row["TWIN_ID"],
+
+            # Big Five (normalized to [0,1])
             "Extraversion": row["score_extraversion"] / 5,
             "Agreeableness": row["score_agreeableness"] / 5,
             "Conscientiousness": row["score_conscientiousness"] / 5,
             "Neuroticism": row["score_neuroticism"] / 5,
-            "Openness": row["score_openness"] / 5
+            "Openness": row["score_openness"] / 5,
+
+            # Same questions for every person (important for experimental control)
+            "questions": QUESTIONS
         })
 
     return pd.DataFrame(processed)

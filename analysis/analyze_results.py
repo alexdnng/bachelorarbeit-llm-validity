@@ -3,7 +3,9 @@ import matplotlib.pyplot as plt
 import os
 
 # 👉 Pfad zu deiner neuesten Datei anpassen
-FILE_PATH = "results/output_7.csv"  # 🔁 ggf. anpassen auf neueste Datei
+FILE_PATH = "results/output_9.csv"  # 🔁 ggf. anpassen auf neueste Datei
+# 🔥 Dateiname dynamisch extrahieren
+base_name = os.path.splitext(os.path.basename(FILE_PATH))[0]
 
 
 # 🔧 1. Datei laden
@@ -76,7 +78,7 @@ plt.ylabel("Mean MAE")
 plt.title("Effect of Temperature on MAE")
 
 os.makedirs("analysis", exist_ok=True)
-plt.savefig("analysis/temperature_vs_mae.png")
+plt.savefig(f"analysis/temperature_vs_mae_{base_name}.png")
 plt.close()
 
 # -----------------------------
@@ -89,7 +91,7 @@ if "reasoning" in samples.columns:
     plt.ylabel("Mean MAE")
     plt.title("Effect of Reasoning on MAE")
 
-    plt.savefig("analysis/reasoning_vs_mae.png")
+    plt.savefig(f"analysis/reasoning_vs_mae_{base_name}.png")
     plt.close()
 
 # -----------------------------
@@ -146,10 +148,10 @@ if "correlation" in agg.columns and not agg.empty:
         plt.title("Correlation Heatmap (Temperature × Reasoning)")
 
         plt.tight_layout()
-        plt.savefig("analysis/heatmap_correlation.png")
+        plt.savefig(f"analysis/heatmap_correlation_{base_name}.png")
         plt.close()
 else:
     print("⚠️ Heatmap übersprungen (keine correlation Daten)")
 
 print("\n✅ Analyse abgeschlossen!")
-print("📊 Plots gespeichert im analysis/ Ordner")
+print(f"📊 Plots gespeichert im analysis/ Ordner für {base_name}")

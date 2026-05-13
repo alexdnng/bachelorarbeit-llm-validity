@@ -1,31 +1,29 @@
-
-from dotenv import load_dotenv
-load_dotenv()
-
-
 import os
 
 from dotenv import load_dotenv
-from openai import OpenAI
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
 
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def generate_profile(prompt, temperature, top_p):
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
+def generate_profile(prompt, temperature, top_p, model_name):
+
+    llm = ChatOpenAI(
+        model=model_name,
         temperature=temperature,
-        top_p=top_p,
-        max_tokens=300
+        max_tokens=300,
+        top_p=1
     )
 
-    return response.choices[0].message.content
+    response = llm.invoke([
+        HumanMessage(content=prompt)
+    ])
 
-def generate_behavior_from_traits(traits, temperature, top_p):
+    return response.content
+
+
+def generate_behavior_from_traits(traits, temperature, top_p, model_name="gpt-4.1-mini"):
     prompt = f"""
 You are given a person's Big Five personality traits.
 
@@ -40,4 +38,4 @@ Focus on observable actions, habits, and social interactions.
 Do NOT mention numbers or trait labels.
 """
 
-    return generate_profile(prompt, temperature, top_p)
+    return generate_profile(prompt, temperature, top_p, model_name)

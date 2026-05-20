@@ -2,19 +2,42 @@ import os
 
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage
 
 load_dotenv()
 
+MODEL_PROVIDER = os.getenv("MODEL_PROVIDER", "openai")
+
 
 def generate_profile(prompt, temperature, top_p, model_name):
 
-    llm = ChatOpenAI(
-        model=model_name,
-        temperature=temperature,
-        max_tokens=300,
-        top_p=1
-    )
+    # -------------------------
+    # OPENAI
+    # -------------------------
+    if MODEL_PROVIDER == "openai":
+
+        llm = ChatOpenAI(
+            model=model_name,
+            temperature=temperature,
+            max_tokens=300,
+            top_p=top_p
+        )
+
+    # -------------------------
+    # OLLAMA
+    # -------------------------
+    elif MODEL_PROVIDER == "ollama":
+
+        llm = ChatOllama(
+            model=model_name,
+            temperature=temperature,
+            num_predict=300,
+            top_p=top_p
+        )
+
+    else:
+        raise ValueError(f"Invalid MODEL_PROVIDER: {MODEL_PROVIDER}")
 
     response = llm.invoke([
         HumanMessage(content=prompt)

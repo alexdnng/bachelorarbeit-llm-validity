@@ -5,6 +5,24 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.generation import generate_profile
+
+# =========================================================
+# DIGITAL TWIN CHAT
+# Separate stateless chat used for personality simulation
+# =========================================================
+def generate_twin_response(prompt, temperature, top_p, model_name):
+    return generate_profile(prompt, temperature, top_p, model_name)
+
+
+# =========================================================
+# PERSONALITY JUDGE CHAT
+# Separate stateless chat used ONLY for personality reconstruction
+# This ensures conceptual separation between Twin and Judge.
+# =========================================================
+def generate_judge_prediction(prompt, temperature, top_p, model_name):
+    return generate_profile(prompt, temperature, top_p, model_name)
+
+
 from src.evaluation import parse_traits, compute_mae
 from src.config import *
 from src.twin2k_loader import load_twin2k
@@ -81,7 +99,11 @@ IMPORTANT:
 - Do not mention traits explicitly
 """
 
-                            answer = generate_profile(prompt, temp_pred, top_p, model_name)
+                            # =========================================================
+                            # DIGITAL TWIN GENERATION STEP
+                            # Independent stateless chat for generating personality answers
+                            # =========================================================
+                            answer = generate_twin_response(prompt, temp_pred, top_p, model_name)
                             answers.append(answer)
 
                         # Combine all answers
@@ -107,7 +129,12 @@ Neuroticism: X
 Openness: X
 """
 
-                        generated = generate_profile(reconstruction_prompt, temp_pred, top_p, model_name)
+                        # =========================================================
+                        # PERSONALITY JUDGE RECONSTRUCTION STEP
+                        # Independent stateless chat for reconstructing Big Five traits
+                        # from the generated answers only.
+                        # =========================================================
+                        generated = generate_judge_prediction(reconstruction_prompt, temp_pred, top_p, model_name)
                         pred_traits = parse_traits(generated)
 
                         # 🔥 FIX: ungültige Predictions rausfiltern

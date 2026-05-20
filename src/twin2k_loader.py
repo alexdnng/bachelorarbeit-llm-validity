@@ -1,5 +1,6 @@
 import pandas as pd
 
+from config import QUESTIONS
 
 def load_twin2k():
     """
@@ -15,15 +16,7 @@ def load_twin2k():
     df = pd.read_csv("data/mega_persona_summary_csv/wave 1 scores.csv")
 
     # Fixed question set (same for every participant → ensures comparability)
-    QUESTIONS = [
-        "Do you enjoy being around other people?",
-        "Do you often feel anxious or stressed?",
-        "Do you like trying new things?",
-        "Do you plan ahead or act spontaneously?",
-        "Do you trust other people easily?",
-        "How do you usually spend your free time?",
-        "How do you react to unexpected problems?"
-    ]
+    
 
     processed = []
 

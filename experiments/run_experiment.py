@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -27,12 +28,19 @@ from src.evaluation import parse_traits, compute_mae
 from src.config import *
 from src.twin2k_loader import load_twin2k
 
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, spearmanr
 import numpy as np
 import pandas as pd
 import os
 
 print(">>> RUN_EXPERIMENT STARTED")
+
+# =========================================================
+# INCREMENTAL RESULT SAVING
+# Saves intermediate experiment results during execution to
+# avoid data loss in case of crashes, API failures, or sleep.
+# =========================================================
+SAVE_FILE = get_next_filename() if 'get_next_filename' in globals() else "results/temp_results.csv"
 
 
 def run():
@@ -41,6 +49,9 @@ def run():
     df = df.sample(samplesize, random_state=42)  # keep for testing
 
     results = []
+
+    # Create results folder if necessary
+    os.makedirs("results", exist_ok=True)
 
     for model_name in MODELS:
         print(f"\n>>> Running model={model_name}")
@@ -52,7 +63,7 @@ def run():
                 for top_p in [1.0]:  # fixed since focus is temperature + reasoning
                     print(f">>> Running top_p={top_p}")
 
-                    temp_text = 0.8  # fixed for text generation
+                    temp_text = 0  # fixed for text generation
 
                     predictions = []
                     ground_truth = []
@@ -100,10 +111,24 @@ IMPORTANT:
 """
 
                             # =========================================================
-                            # DIGITAL TWIN GENERATION STEP
-                            # Independent stateless chat for generating personality answers
+                            # SAFE DIGITAL TWIN GENERATION
+                            # Retry mechanism prevents full experiment crashes caused by
+                            # temporary API/network/rate-limit errors.
                             # =========================================================
-                            answer = generate_twin_response(prompt, temp_pred, top_p, model_name)
+                            answer = None
+
+                            for attempt in range(3):
+                                try:
+                                    answer = generate_twin_response(prompt, temp_pred, top_p, model_name)
+                                    break
+                                except Exception as e:
+                                    print(f"⚠️ Twin generation failed (attempt {attempt+1}/3): {e}")
+                                    time.sleep(2)
+
+                            if answer is None:
+                                print("⚠️ Skipping sample because twin generation failed")
+                                continue
+
                             answers.append(answer)
 
                         # Combine all answers
@@ -130,11 +155,24 @@ Openness: X
 """
 
                         # =========================================================
-                        # PERSONALITY JUDGE RECONSTRUCTION STEP
-                        # Independent stateless chat for reconstructing Big Five traits
-                        # from the generated answers only.
+                        # SAFE JUDGE RECONSTRUCTION
+                        # Retry mechanism prevents single reconstruction failures
+                        # from terminating the entire experiment.
                         # =========================================================
-                        generated = generate_judge_prediction(reconstruction_prompt, temp_pred, top_p, model_name)
+                        generated = None
+
+                        for attempt in range(3):
+                            try:
+                                generated = generate_judge_prediction(reconstruction_prompt, 0, top_p, model_name)
+                                break
+                            except Exception as e:
+                                print(f"⚠️ Judge reconstruction failed (attempt {attempt+1}/3): {e}")
+                                time.sleep(2)
+
+                        if generated is None:
+                            print("⚠️ Skipping sample because judge reconstruction failed")
+                            continue
+
                         pred_traits = parse_traits(generated)
 
                         # 🔥 FIX: ungültige Predictions rausfiltern
@@ -165,9 +203,17 @@ Openness: X
                             "reasoning": reasoning,
                             "input": combined_text,
                             "generated": generated,
+                            "pred_traits": str(pred_traits),
+                            "true_traits": str(true_traits),
                             "mae": score,
                             "type": "sample"
                         })
+
+                        # =========================================================
+                        # INCREMENTAL CHECKPOINT SAVE
+                        # Save intermediate results after every processed sample.
+                        # =========================================================
+                        pd.DataFrame(results).to_csv(SAVE_FILE, index=False)
 
                     # 🔥 Safety checks before correlation
                     if len(predictions) < 5:
@@ -192,11 +238,25 @@ Openness: X
                         print("⚠️ No variance after cleaning – skipping correlation")
                         continue
 
-                    corr, _ = pearsonr(flat_pred, flat_true)
+                    # =========================================================
+                    # CORRELATION ANALYSIS
+                    # Pearson measures linear agreement between predicted and
+                    # true trait values.
+                    # Spearman measures rank-order agreement and is additionally
+                    # appropriate for ordinal / Likert-style personality data.
+                    # =========================================================
+                    pearson_corr, _ = pearsonr(flat_pred, flat_true)
+                    spearman_corr, _ = spearmanr(flat_pred, flat_true)
 
-                    print(f"✅ Correlation computed: {corr}")
+                    print(f"✅ Pearson correlation computed: {pearson_corr}")
+                    print(f"✅ Spearman correlation computed: {spearman_corr}")
 
-                    print(f"Saving aggregate: temp_pred={temp_pred}, reasoning={reasoning}, top_p={top_p}, corr={corr}, n={len(predictions)}")
+                    print(
+                        f"Saving aggregate: temp_pred={temp_pred}, reasoning={reasoning}, "
+                        f"top_p={top_p}, pearson={pearson_corr}, spearman={spearman_corr}, "
+                        f"n={len(predictions)}"
+                    )
+
                     results.append({
                         "temperature": temp_pred,
                         "model": model_name,
@@ -204,7 +264,8 @@ Openness: X
                         "temp_text": temp_text,
                         "top_p": top_p,
                         "reasoning": reasoning,
-                        "correlation": float(corr),
+                        "pearson_correlation": float(pearson_corr),
+                        "spearman_correlation": float(spearman_corr),
                         "n_samples": len(predictions),
                         "type": "aggregate"
                     })

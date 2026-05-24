@@ -3,7 +3,7 @@
 # =====================================================
 
 OPENAI_MODELS = [
-    "gpt-4.1",
+    #"gpt-4.1",
     "gpt-4.1-mini"
 ]
 
@@ -12,8 +12,8 @@ OLLAMA_MODELS = [
 ]
 
 # Select active model group
-MODELS = OLLAMA_MODELS
-#MODELS = OPENAI_MODELS
+#MODELS = OLLAMA_MODELS
+MODELS = OPENAI_MODELS
 
 
 # =====================================================
@@ -30,9 +30,9 @@ REASONING_MODES = [
 
 TOP_P_VALUES = [1.0]
 
-samplesize = 5
+samplesize = 25
 
-MAX_TOKENS = 300
+MAX_TOKENS = 100
 
 N_RUNS_PER_SETTING = 5
 

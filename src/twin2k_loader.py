@@ -1,6 +1,6 @@
 import pandas as pd
 
-from config import QUESTIONS
+from src.config import QUESTIONS
 
 def load_twin2k():
     """

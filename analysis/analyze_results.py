@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os
 
 # 👉 Pfad zu deiner neuesten Datei anpassen
-FILE_PATH = "results/output_1.csv"  # 🔁 ggf. anpassen auf neueste Datei
+FILE_PATH = "results/output_2.csv"  # 🔁 ggf. anpassen auf neueste Datei
 # 🔥 Dateiname dynamisch extrahieren
 base_name = os.path.splitext(os.path.basename(FILE_PATH))[0]
 

@@ -37,10 +37,10 @@ print(">>> RUN_EXPERIMENT STARTED")
 
 # =========================================================
 # INCREMENTAL RESULT SAVING
-# Saves intermediate experiment results during execution to
-# avoid data loss in case of crashes, API failures, or sleep.
+# Temporary checkpoint file used during execution to avoid
+# data loss in case of crashes or API failures.
 # =========================================================
-SAVE_FILE = get_next_filename() if 'get_next_filename' in globals() else "results/temp_results.csv"
+SAVE_FILE = "results/temp_results.csv"
 
 
 def run():
@@ -63,40 +63,46 @@ def run():
                 for top_p in [1.0]:  # fixed since focus is temperature + reasoning
                     print(f">>> Running top_p={top_p}")
 
-                    temp_text = 0  # fixed for text generation
+                    for run_idx in range(N_RUNS_PER_SETTING):
+                        print(f">>> Run {run_idx + 1}/{N_RUNS_PER_SETTING}")
 
-                    predictions = []
-                    ground_truth = []
+                        temp_text = 0  # fixed for text generation
 
-                    for i, (_, row) in enumerate(df.iterrows()):
-                        print(f"Processing sample {i+1}/{len(df)}")
+                        predictions = []
+                        ground_truth = []
 
-                        true_traits = {
-                            "Extraversion": row["Extraversion"],
-                            "Agreeableness": row["Agreeableness"],
-                            "Conscientiousness": row["Conscientiousness"],
-                            "Neuroticism": row["Neuroticism"],
-                            "Openness": row["Openness"]
-                        }
+                        for i, (_, row) in enumerate(df.iterrows()):
+                            print(f"Processing sample {i+1}/{len(df)}")
 
-                        answers = []
+                            true_traits = row["ground_truth"]
+                            twin_features = row["twin_features"]
 
-                        if reasoning == "cot":
-                            reasoning_instruction = "Think step by step before answering."
-                        elif reasoning == "uncertain":
-                            reasoning_instruction = "Answer like a human with some uncertainty and variability."
-                        else:
-                            reasoning_instruction = "Answer directly."
+                            answers = []
 
-                        for question in row["questions"]:
-                            prompt = f"""
-You are a digital twin of a person with the following personality traits:
+                            if reasoning == "cot":
+                                reasoning_instruction = "Think step by step before answering."
+                            elif reasoning == "uncertain":
+                                reasoning_instruction = "Answer like a human with some uncertainty and variability."
+                            else:
+                                reasoning_instruction = "Answer directly."
 
-Extraversion: {true_traits['Extraversion']}
-Agreeableness: {true_traits['Agreeableness']}
-Conscientiousness: {true_traits['Conscientiousness']}
-Neuroticism: {true_traits['Neuroticism']}
-Openness: {true_traits['Openness']}
+                            feature_lines = []
+
+                            for key, value in twin_features.items():
+                                label = FEATURE_LABELS[key]
+                                feature_lines.append(f"- {label}: {float(value):.2f}")
+
+                            feature_text = "\n".join(feature_lines)
+
+                            for question in row["questions"]:
+                                prompt = f"""
+You are simulating a real human participant.
+
+The following psychological assessment scores describe this person.
+Higher values indicate stronger expression of the characteristic.
+
+Psychological Profile:
+{feature_text}
 
 Instruction:
 {reasoning_instruction}
@@ -106,36 +112,38 @@ Answer the following question as this person would:
 {question}
 
 IMPORTANT:
-- Give a natural, realistic answer
-- Do not mention traits explicitly
+- Give a natural and realistic answer
+- Answer consistently with the psychological profile
+- Do not mention the profile explicitly
+- Do not explain your reasoning
 """
 
-                            # =========================================================
-                            # SAFE DIGITAL TWIN GENERATION
-                            # Retry mechanism prevents full experiment crashes caused by
-                            # temporary API/network/rate-limit errors.
-                            # =========================================================
-                            answer = None
+                                # =========================================================
+                                # SAFE DIGITAL TWIN GENERATION
+                                # Retry mechanism prevents full experiment crashes caused by
+                                # temporary API/network/rate-limit errors.
+                                # =========================================================
+                                answer = None
 
-                            for attempt in range(3):
-                                try:
-                                    answer = generate_twin_response(prompt, temp_pred, top_p, model_name)
-                                    break
-                                except Exception as e:
-                                    print(f"⚠️ Twin generation failed (attempt {attempt+1}/3): {e}")
-                                    time.sleep(2)
+                                for attempt in range(3):
+                                    try:
+                                        answer = generate_twin_response(prompt, temp_pred, top_p, model_name)
+                                        break
+                                    except Exception as e:
+                                        print(f"⚠️ Twin generation failed (attempt {attempt+1}/3): {e}")
+                                        time.sleep(2)
 
-                            if answer is None:
-                                print("⚠️ Skipping sample because twin generation failed")
-                                continue
+                                if answer is None:
+                                    print("⚠️ Skipping sample because twin generation failed")
+                                    continue
 
-                            answers.append(answer)
+                                answers.append(answer)
 
-                        # Combine all answers
-                        combined_text = "\n".join(answers)
+                            # Combine all answers
+                            combined_text = "\n".join(answers)
 
-                        # STEP 2: reconstruct traits from ALL answers
-                        reconstruction_prompt = f"""
+                            # STEP 2: reconstruct traits from ALL answers
+                            reconstruction_prompt = f"""
 Based on the following answers:
 
 {combined_text}
@@ -154,45 +162,110 @@ Neuroticism: X
 Openness: X
 """
 
+                            # =========================================================
+                            # SAFE JUDGE RECONSTRUCTION
+                            # Retry mechanism prevents single reconstruction failures
+                            # from terminating the entire experiment.
+                            # =========================================================
+                            generated = None
+
+                            for attempt in range(3):
+                                try:
+                                    generated = generate_judge_prediction(reconstruction_prompt, 0, top_p, model_name)
+                                    break
+                                except Exception as e:
+                                    print(f"⚠️ Judge reconstruction failed (attempt {attempt+1}/3): {e}")
+                                    time.sleep(2)
+
+                            if generated is None:
+                                print("⚠️ Skipping sample because judge reconstruction failed")
+                                continue
+
+                            pred_traits = parse_traits(generated)
+
+                            # 🔥 FIX: ungültige Predictions rausfiltern
+                            if len(pred_traits) != 5:
+                                continue
+
+                            if any(v is None for v in pred_traits.values()):
+                                continue
+
+                            pred_values = list(pred_traits.values())
+                            true_values = list(true_traits.values())
+
+                            # Ensure numeric conversion
+                            pred_values = [float(v) for v in pred_values]
+                            true_values = [float(v) for v in true_values]
+
+                            predictions.append(pred_values)
+                            ground_truth.append(true_values)
+
+                            score = compute_mae(pred_traits, true_traits)
+
+                            results.append({
+                                "temperature": temp_pred,
+                                "model": model_name,
+                                "temp_pred": temp_pred,
+                                "temp_text": temp_text,
+                                "top_p": top_p,
+                                "reasoning": reasoning,
+                                "run": run_idx,
+                                "samplesize": samplesize,
+                                "input": combined_text,
+                                "generated": generated,
+                                "pred_traits": str(pred_traits),
+                                "true_traits": str(true_traits),
+                                "mae": score,
+                                "type": "sample"
+                            })
+
+                            # =========================================================
+                            # INCREMENTAL CHECKPOINT SAVE
+                            # Save intermediate results after every processed sample.
+                            # =========================================================
+                            pd.DataFrame(results).to_csv(SAVE_FILE, index=False)
+
+                        # 🔥 Safety checks before correlation
+                        if len(predictions) < 5:
+                            print("⚠️ Too few valid samples – skipping correlation")
+                            continue
+
+                        # Convert to numpy arrays
+                        flat_pred = np.array(predictions, dtype=float).flatten()
+                        flat_true = np.array(ground_truth, dtype=float).flatten()
+
+                        # Remove NaNs explicitly
+                        mask = ~np.isnan(flat_pred) & ~np.isnan(flat_true)
+                        flat_pred = flat_pred[mask]
+                        flat_true = flat_true[mask]
+
+                        # Final safety checks
+                        if len(flat_pred) < 2:
+                            print("⚠️ Not enough valid values after cleaning – skipping correlation")
+                            continue
+
+                        if np.std(flat_pred) == 0 or np.std(flat_true) == 0:
+                            print("⚠️ No variance after cleaning – skipping correlation")
+                            continue
+
                         # =========================================================
-                        # SAFE JUDGE RECONSTRUCTION
-                        # Retry mechanism prevents single reconstruction failures
-                        # from terminating the entire experiment.
+                        # CORRELATION ANALYSIS
+                        # Pearson measures linear agreement between predicted and
+                        # true trait values.
+                        # Spearman measures rank-order agreement and is additionally
+                        # appropriate for ordinal / Likert-style personality data.
                         # =========================================================
-                        generated = None
+                        pearson_corr, _ = pearsonr(flat_pred, flat_true)
+                        spearman_corr, _ = spearmanr(flat_pred, flat_true)
 
-                        for attempt in range(3):
-                            try:
-                                generated = generate_judge_prediction(reconstruction_prompt, 0, top_p, model_name)
-                                break
-                            except Exception as e:
-                                print(f"⚠️ Judge reconstruction failed (attempt {attempt+1}/3): {e}")
-                                time.sleep(2)
+                        print(f"✅ Pearson correlation computed: {pearson_corr}")
+                        print(f"✅ Spearman correlation computed: {spearman_corr}")
 
-                        if generated is None:
-                            print("⚠️ Skipping sample because judge reconstruction failed")
-                            continue
-
-                        pred_traits = parse_traits(generated)
-
-                        # 🔥 FIX: ungültige Predictions rausfiltern
-                        if len(pred_traits) != 5:
-                            continue
-
-                        if any(v is None for v in pred_traits.values()):
-                            continue
-
-                        pred_values = list(pred_traits.values())
-                        true_values = list(true_traits.values())
-
-                        # Ensure numeric conversion
-                        pred_values = [float(v) for v in pred_values]
-                        true_values = [float(v) for v in true_values]
-
-                        predictions.append(pred_values)
-                        ground_truth.append(true_values)
-
-                        score = compute_mae(pred_traits, true_traits)
+                        print(
+                            f"Saving aggregate: temp_pred={temp_pred}, reasoning={reasoning}, "
+                            f"top_p={top_p}, pearson={pearson_corr}, spearman={spearman_corr}, "
+                            f"n={len(predictions)}"
+                        )
 
                         results.append({
                             "temperature": temp_pred,
@@ -201,74 +274,13 @@ Openness: X
                             "temp_text": temp_text,
                             "top_p": top_p,
                             "reasoning": reasoning,
-                            "input": combined_text,
-                            "generated": generated,
-                            "pred_traits": str(pred_traits),
-                            "true_traits": str(true_traits),
-                            "mae": score,
-                            "type": "sample"
+                            "run": run_idx,
+                            "samplesize": samplesize,
+                            "pearson_correlation": float(pearson_corr),
+                            "spearman_correlation": float(spearman_corr),
+                            "n_samples": len(predictions),
+                            "type": "aggregate"
                         })
-
-                        # =========================================================
-                        # INCREMENTAL CHECKPOINT SAVE
-                        # Save intermediate results after every processed sample.
-                        # =========================================================
-                        pd.DataFrame(results).to_csv(SAVE_FILE, index=False)
-
-                    # 🔥 Safety checks before correlation
-                    if len(predictions) < 5:
-                        print("⚠️ Too few valid samples – skipping correlation")
-                        continue
-
-                    # Convert to numpy arrays
-                    flat_pred = np.array(predictions, dtype=float).flatten()
-                    flat_true = np.array(ground_truth, dtype=float).flatten()
-
-                    # Remove NaNs explicitly
-                    mask = ~np.isnan(flat_pred) & ~np.isnan(flat_true)
-                    flat_pred = flat_pred[mask]
-                    flat_true = flat_true[mask]
-
-                    # Final safety checks
-                    if len(flat_pred) < 2:
-                        print("⚠️ Not enough valid values after cleaning – skipping correlation")
-                        continue
-
-                    if np.std(flat_pred) == 0 or np.std(flat_true) == 0:
-                        print("⚠️ No variance after cleaning – skipping correlation")
-                        continue
-
-                    # =========================================================
-                    # CORRELATION ANALYSIS
-                    # Pearson measures linear agreement between predicted and
-                    # true trait values.
-                    # Spearman measures rank-order agreement and is additionally
-                    # appropriate for ordinal / Likert-style personality data.
-                    # =========================================================
-                    pearson_corr, _ = pearsonr(flat_pred, flat_true)
-                    spearman_corr, _ = spearmanr(flat_pred, flat_true)
-
-                    print(f"✅ Pearson correlation computed: {pearson_corr}")
-                    print(f"✅ Spearman correlation computed: {spearman_corr}")
-
-                    print(
-                        f"Saving aggregate: temp_pred={temp_pred}, reasoning={reasoning}, "
-                        f"top_p={top_p}, pearson={pearson_corr}, spearman={spearman_corr}, "
-                        f"n={len(predictions)}"
-                    )
-
-                    results.append({
-                        "temperature": temp_pred,
-                        "model": model_name,
-                        "temp_pred": temp_pred,
-                        "temp_text": temp_text,
-                        "top_p": top_p,
-                        "reasoning": reasoning,
-                        "pearson_correlation": float(pearson_corr),
-                        "spearman_correlation": float(spearman_corr),
-                        "n_samples": len(predictions),
-                        "type": "aggregate"
-                    })
 
     return results
 

@@ -28,6 +28,7 @@ from src.evaluation import parse_traits, compute_mae
 from src.config import *
 from src.twin2k_loader import load_twin2k
 
+
 from scipy.stats import pearsonr, spearmanr
 import numpy as np
 import pandas as pd
@@ -79,10 +80,22 @@ def run():
 
                             answers = []
 
-                            if reasoning == "cot":
-                                reasoning_instruction = "Think step by step before answering."
-                            elif reasoning == "uncertain":
-                                reasoning_instruction = "Answer like a human with some uncertainty and variability."
+                            if reasoning == "think":
+                                reasoning_instruction = """
+Before answering, consider how a person with the given psychological profile would think, feel, and behave.
+
+Provide only the final answer.
+Do not show any reasoning, analysis, or intermediate steps.
+"""
+                            elif reasoning == "cot":
+                                reasoning_instruction = """
+Before answering, carefully consider how a person with the given psychological profile would think, feel, and behave.
+
+Think step by step before answering.
+
+Provide only the final answer.
+Do not show any reasoning, analysis, or intermediate steps.
+"""
                             else:
                                 reasoning_instruction = "Answer directly."
 
@@ -115,7 +128,7 @@ IMPORTANT:
 - Give a natural and realistic answer
 - Answer consistently with the psychological profile
 - Do not mention the profile explicitly
-- Do not explain your reasoning
+- Only give the answers for the questions
 """
 
                                 # =========================================================
@@ -144,22 +157,32 @@ IMPORTANT:
 
                             # STEP 2: reconstruct traits from ALL answers
                             reconstruction_prompt = f"""
-Based on the following answers:
+Based only on the answers below, estimate the person's Big Five personality traits.
 
+Answers:
 {combined_text}
 
-Estimate Big Five personality traits (values between 0 and 1).
+Estimate each trait on a continuous scale from 0.00 to 1.00, where higher values indicate stronger expression of the trait.
+
+Use the full range of the scale when justified by the evidence.
+Provide precise numerical estimates with two decimal places.
+Do not round traits to broad categories such as 0.3, 0.5, or 0.7 unless the evidence genuinely supports those exact values.
+
+Infer the person's relative standing compared to the general population.
+Base your estimates only on information contained in the answers.
 
 IMPORTANT:
-- Output ONLY a single number per trait
+- Output exactly one numeric value per trait
+- Use decimal numbers with four digits after the decimal point
 - No explanations
+- No additional text
 
 Format:
-Extraversion: X
-Agreeableness: X
-Conscientiousness: X
-Neuroticism: X
-Openness: X
+Extraversion: 0.6325
+Agreeableness: 0.7194
+Conscientiousness: 0.5493
+Neuroticism: 0.8225
+Openness: 0.6723
 """
 
                             # =========================================================
@@ -171,7 +194,7 @@ Openness: X
 
                             for attempt in range(3):
                                 try:
-                                    generated = generate_judge_prediction(reconstruction_prompt, 0, top_p, model_name)
+                                    generated = generate_judge_prediction(reconstruction_prompt, 0, top_p, JUDGE_MODEL)
                                     break
                                 except Exception as e:
                                     print(f"⚠️ Judge reconstruction failed (attempt {attempt+1}/3): {e}")
@@ -210,11 +233,23 @@ Openness: X
                                 "top_p": top_p,
                                 "reasoning": reasoning,
                                 "run": run_idx,
+                                "run_id": run_idx,
+                                "person_id": row["id"],
                                 "samplesize": samplesize,
                                 "input": combined_text,
                                 "generated": generated,
                                 "pred_traits": str(pred_traits),
+                                "pred_extraversion": pred_traits["Extraversion"],
+                                "pred_agreeableness": pred_traits["Agreeableness"],
+                                "pred_conscientiousness": pred_traits["Conscientiousness"],
+                                "pred_neuroticism": pred_traits["Neuroticism"],
+                                "pred_openness": pred_traits["Openness"],
                                 "true_traits": str(true_traits),
+                                "gt_extraversion": true_traits["Extraversion"],
+                                "gt_agreeableness": true_traits["Agreeableness"],
+                                "gt_conscientiousness": true_traits["Conscientiousness"],
+                                "gt_neuroticism": true_traits["Neuroticism"],
+                                "gt_openness": true_traits["Openness"],
                                 "mae": score,
                                 "type": "sample"
                             })

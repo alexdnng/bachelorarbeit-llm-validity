@@ -2,6 +2,7 @@
 # MODEL CONFIGURATION
 # =====================================================
 
+
 OPENAI_MODELS = [
     #"gpt-4.1",
     "gpt-4.1-mini"
@@ -10,6 +11,8 @@ OPENAI_MODELS = [
 OLLAMA_MODELS = [
     "llama3.1:8b"
 ]
+
+JUDGE_MODEL="gpt-4.1-mini"
 
 # Select active model group
 #MODELS = OLLAMA_MODELS
@@ -24,18 +27,18 @@ TEMPERATURES = [0.1, 0.3, 0.5, 0.7, 0.9]
 
 REASONING_MODES = [
     "direct",
-    "cot",
-    "uncertain"
+    "think",
+    "cot"
 ]
 
 TOP_P_VALUES = [1.0]
 
-samplesize = 25
+samplesize = 20
 
 MAX_TOKENS = 100
 
 
-N_RUNS_PER_SETTING = 1
+N_RUNS_PER_SETTING = 3
 
 # =====================================================
 # DIGITAL TWIN FEATURE CONFIGURATION
@@ -64,25 +67,25 @@ TWIN_FEATURE_COLUMNS = [
 ]
 
 FEATURE_LABELS = {
-    "score_needforcognition": "Need for cognition scale",
-    "score_agency": "Agentic vs. Communal Values scale",
-    "score_minimalism": "Consumer Minimalism scale",
-    "score_BES": "Basic Empathy scale",
-    "score_GREEN": "Green values scale",
-    "score_socialdesirability": "Social Desirability scale",
-    "score_anxiety": "Anxiety scale",
-    "score_HI": "Horizontal Individualism",
-    "score_VI": "Vertical Individualism",
-    "score_HC": "Horizontal Collectivism",
-    "score_VC": "Vertical Collectivism",
-    "score_RFS": "Regulatory Focus scale",
-    "score_ST-TW": "Tightwads vs. Spendthrift scale",
-    "score_depression": "Depression scale",
-    "score_CNFU-S": "Need for uniqueness scale",
-    "score_selfmonitor": "Self-monitoring scale",
-    "score_SCC": "Self-concept clarity scale",
-    "score_needforclosure": "Need for closure scale",
-    "score_maximization": "Maximization scale"
+    "score_needforcognition": "Need for Cognition scale (enjoys thinking deeply, analyzing information, and engaging with complex ideas)",
+    "score_agency": "Agentic vs. Communal Values scale (prioritizes personal achievement, independence, and success versus cooperation, care, and social relationships)",
+    "score_minimalism": "Consumer Minimalism scale (prefers simplicity, reduced material consumption, and owning only what is necessary)",
+    "score_BES": "Basic Empathy scale (understands and shares the feelings and emotional experiences of others)",
+    "score_GREEN": "Green Values scale (cares about environmental protection, sustainability, and ecological responsibility)",
+    "score_socialdesirability": "Social Desirability scale (tends to present oneself in a socially acceptable and favorable way)",
+    "score_anxiety": "Anxiety scale (experiences worry, nervousness, uncertainty, and emotional tension more frequently)",
+    "score_HI": "Horizontal Individualism (values independence and self-reliance while viewing others as equals)",
+    "score_VI": "Vertical Individualism (values independence, competition, status, and standing out from others)",
+    "score_HC": "Horizontal Collectivism (values cooperation, group harmony, and equality within social groups)",
+    "score_VC": "Vertical Collectivism (values loyalty to groups, fulfilling duties, and respecting hierarchy and authority)",
+    "score_RFS": "Regulatory Focus scale (approaches goals by seeking growth and gains or by avoiding risks and losses)",
+    "score_ST-TW": "Tightwads vs. Spendthrift scale (tendency to be cautious and reluctant versus willing and spontaneous when spending money)",
+    "score_depression": "Depression scale (experiences sadness, low motivation, hopelessness, and reduced enjoyment more frequently)",
+    "score_CNFU-S": "Need for Uniqueness scale (desires to be different, distinctive, and stand out from others)",
+    "score_selfmonitor": "Self-Monitoring scale (adjusts behavior and self-presentation to fit different social situations)",
+    "score_SCC": "Self-Concept Clarity scale (has a clear, stable, and well-defined understanding of personal identity)",
+    "score_needforclosure": "Need for Closure scale (prefers certainty, structure, predictability, and clear answers over ambiguity)",
+    "score_maximization": "Maximization scale (seeks the best possible option and carefully compares alternatives before deciding)"
 }
 
 GROUND_TRUTH_COLUMNS = [

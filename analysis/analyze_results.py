@@ -1,9 +1,10 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+import pingouin as pg
 
 # 👉 Pfad zu deiner neuesten Datei anpassen
-FILE_PATH = "results/output_2.csv"  # 🔁 ggf. anpassen auf neueste Datei
+FILE_PATH = "results/output_4.csv"  # 🔁 ggf. anpassen auf neueste Datei
 # 🔥 Dateiname dynamisch extrahieren
 base_name = os.path.splitext(os.path.basename(FILE_PATH))[0]
 
@@ -55,19 +56,29 @@ print(agg.head())
 # -----------------------------
 # 📊 Durchschnitt nach temperature (MAE)
 # -----------------------------
-temp_group = samples.groupby("temperature")["mae"].mean().reset_index()
+temp_group = (
+    samples
+    .groupby("temperature")["mae"]
+    .agg(["mean", "std"])
+    .reset_index()
+)
 
 print("\n=== Durchschnitt MAE nach Temperature ===")
-print(temp_group)
+print(temp_group[["temperature", "mean", "std"]])
 
 # -----------------------------
 # 📊 Durchschnitt nach reasoning (MAE)
 # -----------------------------
 if "reasoning" in samples.columns:
-    reasoning_group = samples.groupby("reasoning")["mae"].mean().reset_index()
+    reasoning_group = (
+        samples
+        .groupby("reasoning")["mae"]
+        .agg(["mean", "std"])
+        .reset_index()
+    )
 
     print("\n=== Durchschnitt MAE nach Reasoning ===")
-    print(reasoning_group)
+    print(reasoning_group[["reasoning", "mean", "std"]])
 else:
     print("⚠️ 'reasoning' Spalte nicht gefunden – überspringe Reasoning-Analyse")
 
@@ -75,7 +86,12 @@ else:
 # 📊 Plot: Temperature vs MAE
 # -----------------------------
 plt.figure()
-plt.plot(temp_group["temperature"], temp_group["mae"], marker='o')
+plt.errorbar(
+    temp_group["temperature"],
+    temp_group["mean"],
+    yerr=temp_group["std"],
+    marker='o'
+)
 plt.xlabel("Temperature")
 plt.ylabel("Mean MAE")
 plt.title("Effect of Temperature on MAE")
@@ -89,7 +105,11 @@ plt.close()
 # -----------------------------
 if "reasoning" in samples.columns:
     plt.figure()
-    plt.bar(reasoning_group["reasoning"], reasoning_group["mae"])
+    plt.bar(
+        reasoning_group["reasoning"],
+        reasoning_group["mean"],
+        yerr=reasoning_group["std"]
+    )
     plt.xlabel("Reasoning Mode")
     plt.ylabel("Mean MAE")
     plt.title("Effect of Reasoning on MAE")
@@ -191,6 +211,162 @@ if "pearson_correlation" in agg.columns and not agg.empty:
         plt.close()
 else:
     print("⚠️ Heatmaps übersprungen (keine Correlation-Daten)")
+
+ # -----------------------------
+# 📈 Variabilitätsanalyse der Traits
+# -----------------------------
+trait_cols = [
+    "pred_extraversion",
+    "pred_agreeableness",
+    "pred_conscientiousness",
+    "pred_neuroticism",
+    "pred_openness",
+]
+
+required_cols = ["person_id", "temperature", "reasoning"] + trait_cols
+
+if all(col in samples.columns for col in required_cols):
+    variability = (
+        samples
+        .groupby(["person_id", "temperature", "reasoning"])[trait_cols]
+        .std()
+        .reset_index()
+    )
+
+    variability["mean_trait_std"] = variability[trait_cols].mean(axis=1)
+
+    print("\n=== Variability by Person ===")
+    print(variability.head())
+
+    variability.to_csv(
+        f"analysis/trait_variability_{base_name}.csv",
+        index=False
+    )
+
+    temp_variability = (
+        variability
+        .groupby("temperature")["mean_trait_std"]
+        .agg(["mean", "std"])
+        .reset_index()
+    )
+
+    print("\n=== Mean Trait STD by Temperature ===")
+    print(temp_variability)
+
+    reasoning_variability = (
+        variability
+        .groupby("reasoning")["mean_trait_std"]
+        .agg(["mean", "std"])
+        .reset_index()
+    )
+
+    print("\n=== Mean Trait STD by Reasoning ===")
+    print(reasoning_variability)
+else:
+    print("⚠️ Variability analysis skipped: required trait columns missing")
+
+# -----------------------------
+# 📈 ICC Analyse
+# -----------------------------
+if "run_id" in samples.columns:
+
+    icc_results = []
+
+    for temperature in sorted(samples["temperature"].unique()):
+        for reasoning in sorted(samples["reasoning"].unique()):
+
+            subset = samples[
+                (samples["temperature"] == temperature)
+                & (samples["reasoning"] == reasoning)
+            ]
+
+            for trait in trait_cols:
+
+                try:
+
+                    icc_subset = subset[
+                        ["person_id", "run_id", trait]
+                    ].dropna()
+
+                    # ICC benötigt mindestens zwei Personen
+                    # und mindestens zwei Rater (Runs)
+                    if icc_subset["person_id"].nunique() < 2:
+                        continue
+
+                    if icc_subset["run_id"].nunique() < 2:
+                        continue
+
+                    icc_table = pg.intraclass_corr(
+                        data=icc_subset,
+                        targets="person_id",
+                        raters="run_id",
+                        ratings=trait
+                    )
+
+                    # Neuere Pingouin-Versionen verwenden
+                    # ICC(1,1), ICC(A,1), ICC(C,1) statt ICC1/ICC2/ICC3.
+                    icc_row = icc_table.loc[
+                        icc_table["Type"] == "ICC(A,1)"
+                    ]
+
+                    # Fallback für ältere Pingouin-Versionen
+                    if icc_row.empty:
+                        icc_row = icc_table.loc[
+                            icc_table["Type"] == "ICC2"
+                        ]
+
+                    if icc_row.empty:
+                        print(
+                            f"⚠️ No suitable ICC result for "
+                            f"{temperature}, {reasoning}, {trait}"
+                        )
+                        continue
+
+                    icc2 = float(icc_row["ICC"].iloc[0])
+
+                    icc_results.append({
+                        "temperature": temperature,
+                        "reasoning": reasoning,
+                        "trait": trait,
+                        "icc": icc2
+                    })
+
+                except Exception as e:
+                    print(
+                        f"⚠️ ICC failed for "
+                        f"{temperature}, {reasoning}, {trait}: {e}"
+                    )
+
+    print(f"\nCollected ICC results: {len(icc_results)}")
+    icc_df = pd.DataFrame(icc_results)
+
+    if not icc_df.empty:
+
+        print("\n=== ICC Results ===")
+        print(icc_df.head())
+
+        icc_df.to_csv(
+            f"analysis/icc_results_{base_name}.csv",
+            index=False
+        )
+
+        mean_icc = (
+            icc_df
+            .groupby(["temperature", "reasoning"])["icc"]
+            .mean()
+            .reset_index()
+        )
+
+        print("\n=== Mean ICC by Condition ===")
+        print(mean_icc)
+
+        mean_icc.to_csv(
+            f"analysis/mean_icc_{base_name}.csv",
+            index=False
+        )
+
+else:
+    print("⚠️ run_id missing - ICC skipped")
 
 print("\n✅ Analyse abgeschlossen!")
 print(f"📊 Plots gespeichert im analysis/ Ordner für {base_name}")

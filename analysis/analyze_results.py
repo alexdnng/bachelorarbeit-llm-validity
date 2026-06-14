@@ -48,10 +48,72 @@ else:
 if "pearson_correlation" not in df.columns:
     print("⚠️ Keine 'pearson_correlation' Spalte gefunden – Heatmap wird übersprungen")
 
+
 print("Anzahl agg rows:", len(agg))
 print("AGG COLUMNS:", agg.columns)
 print("AGG DTYPES:\n", agg.dtypes)
 print(agg.head())
+
+# -----------------------------
+# 📊 Per-Trait MAE Analysis
+# -----------------------------
+trait_mapping = {
+    "extraversion": ("pred_extraversion", "gt_extraversion"),
+    "agreeableness": ("pred_agreeableness", "gt_agreeableness"),
+    "conscientiousness": ("pred_conscientiousness", "gt_conscientiousness"),
+    "neuroticism": ("pred_neuroticism", "gt_neuroticism"),
+    "openness": ("pred_openness", "gt_openness"),
+}
+
+# If your ground-truth columns use different names, adjust here:
+# For example, if your CSV uses "gt_extraversion", change "true_extraversion" to "gt_extraversion" etc.
+
+available_traits = {}
+
+for trait_name, (pred_col, true_col) in trait_mapping.items():
+    if pred_col in df.columns and true_col in df.columns:
+        available_traits[trait_name] = (pred_col, true_col)
+
+if available_traits:
+
+    trait_mae_rows = []
+
+    for trait_name, (pred_col, true_col) in available_traits.items():
+
+        tmp = samples[[pred_col, true_col]].dropna().copy()
+        tmp["trait_mae"] = (tmp[pred_col] - tmp[true_col]).abs()
+
+        trait_mae_rows.append({
+            "trait": trait_name,
+            "mean_mae": tmp["trait_mae"].mean(),
+            "std_mae": tmp["trait_mae"].std(),
+        })
+
+    trait_mae_df = pd.DataFrame(trait_mae_rows)
+
+    print("\n=== Per-Trait MAE ===")
+    print(trait_mae_df)
+
+    trait_mae_df.to_csv(
+        f"analysis/per_trait_mae_{base_name}.csv",
+        index=False,
+    )
+
+    plt.figure(figsize=(8, 4))
+    plt.bar(
+        trait_mae_df["trait"],
+        trait_mae_df["mean_mae"],
+        yerr=trait_mae_df["std_mae"],
+    )
+    plt.ylabel("Mean MAE")
+    plt.xlabel("Trait")
+    plt.title("Per-Trait Prediction Error")
+    plt.tight_layout()
+    plt.savefig(f"analysis/per_trait_mae_{base_name}.png")
+    plt.close()
+
+else:
+    print("⚠️ Per-trait MAE skipped: ground-truth trait columns not found")
 
 # -----------------------------
 # 📊 Durchschnitt nach temperature (MAE)

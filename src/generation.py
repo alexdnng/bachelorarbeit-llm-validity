@@ -4,13 +4,18 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage
+from src.config import (
+    MAX_PROFILE_GENERATION_TOKENS,
+    MAX_TWIN_RESPONSE_TOKENS,
+    MAX_JUDGE_TOKENS,
+)
 
 load_dotenv()
 
 MODEL_PROVIDER = os.getenv("MODEL_PROVIDER", "openai")
 
 
-def generate_profile(prompt, temperature, top_p, model_name):
+def generate_profile(prompt, temperature, top_p, model_name, max_tokens):
 
     # -------------------------
     # OPENAI
@@ -20,7 +25,7 @@ def generate_profile(prompt, temperature, top_p, model_name):
         llm = ChatOpenAI(
             model=model_name,
             temperature=temperature,
-            max_tokens=300,
+            max_tokens=max_tokens,
             top_p=top_p
         )
 
@@ -32,7 +37,7 @@ def generate_profile(prompt, temperature, top_p, model_name):
         llm = ChatOllama(
             model=model_name,
             temperature=temperature,
-            num_predict=300,
+            num_predict=max_tokens,
             top_p=top_p
         )
 
@@ -61,4 +66,30 @@ Focus on observable actions, habits, and social interactions.
 Do NOT mention numbers or trait labels.
 """
 
-    return generate_profile(prompt, temperature, top_p, model_name)
+    return generate_profile(
+        prompt,
+        temperature,
+        top_p,
+        model_name,
+        MAX_PROFILE_GENERATION_TOKENS,
+    )
+
+
+def generate_twin_response(prompt, temperature, top_p, model_name):
+    return generate_profile(
+        prompt,
+        temperature,
+        top_p,
+        model_name,
+        MAX_TWIN_RESPONSE_TOKENS,
+    )
+
+
+def generate_judge_response(prompt, temperature, top_p, model_name):
+    return generate_profile(
+        prompt,
+        temperature,
+        top_p,
+        model_name,
+        MAX_JUDGE_TOKENS,
+    )

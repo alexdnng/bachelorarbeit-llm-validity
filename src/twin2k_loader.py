@@ -45,12 +45,12 @@ def load_twin2k():
         }
 
         ground_truth = {
-            "Extraversion": row["score_extraversion"] / 5,
-            "Agreeableness": row["score_agreeableness"] / 5,
-            "Conscientiousness": row["score_conscientiousness"] / 5,
-            "Neuroticism": row["score_neuroticism"] / 5,
-            "Openness": row["score_openness"] / 5,
-        }
+            "Extraversion":      (row["score_extraversion"] - 1) / 4,
+            "Agreeableness":     (row["score_agreeableness"] - 1) / 4,
+            "Conscientiousness": (row["score_conscientiousness"] - 1) / 4,
+            "Neuroticism":       (row["score_neuroticism"] - 1) / 4,
+            "Openness":          (row["score_openness"] - 1) / 4,
+}
 
         processed.append({
             "id": row["TWIN_ID"],

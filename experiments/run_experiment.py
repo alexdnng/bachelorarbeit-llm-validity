@@ -5,23 +5,12 @@ import time
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.generation import generate_profile
+from src.generation import (
+    generate_profile,
+    generate_twin_response,
+    generate_judge_response,
+)
 
-# =========================================================
-# DIGITAL TWIN CHAT
-# Separate stateless chat used for personality simulation
-# =========================================================
-def generate_twin_response(prompt, temperature, top_p, model_name):
-    return generate_profile(prompt, temperature, top_p, model_name)
-
-
-# =========================================================
-# PERSONALITY JUDGE CHAT
-# Separate stateless chat used ONLY for personality reconstruction
-# This ensures conceptual separation between Twin and Judge.
-# =========================================================
-def generate_judge_prediction(prompt, temperature, top_p, model_name):
-    return generate_profile(prompt, temperature, top_p, model_name)
 
 
 from src.evaluation import parse_traits, compute_mae
@@ -46,7 +35,6 @@ SAVE_FILE = "results/temp_results.csv"
 
 def run():
     df = load_twin2k()
-    # TODO: twin2k_loader must provide a 'question' column with held-out questions for proper evaluation
     df = df.sample(samplesize, random_state=42)  # keep for testing
 
     results = []
@@ -78,8 +66,6 @@ def run():
                             true_traits = row["ground_truth"]
                             twin_features = row["twin_features"]
 
-                            answers = []
-
                             if reasoning == "think":
                                 reasoning_instruction = """
 Before answering, consider how a person with the given psychological profile would think, feel, and behave.
@@ -107,8 +93,11 @@ Do not show any reasoning, analysis, or intermediate steps.
 
                             feature_text = "\n".join(feature_lines)
 
-                            for question in row["questions"]:
-                                prompt = f"""
+                            questions_text = "\n\n".join(
+                                [f"Question {idx+1}:\n{q}" for idx, q in enumerate(row["questions"])]
+                            )
+
+                            prompt = f"""
 You are simulating a real human participant.
 
 The following psychological assessment scores describe this person.
@@ -120,40 +109,36 @@ Psychological Profile:
 Instruction:
 {reasoning_instruction}
 
-Answer the following question as this person would:
+Answer all of the following questions as this person would.
 
-{question}
+{questions_text}
 
 IMPORTANT:
-- Give a natural and realistic answer
+- Give natural and realistic answers
 - Answer consistently with the psychological profile
 - Do not mention the profile explicitly
-- Only give the answers for the questions
+- Provide one answer for each question
+- Preserve the question numbering in your response
 """
 
-                                # =========================================================
-                                # SAFE DIGITAL TWIN GENERATION
-                                # Retry mechanism prevents full experiment crashes caused by
-                                # temporary API/network/rate-limit errors.
-                                # =========================================================
-                                answer = None
+                            combined_text = None
 
-                                for attempt in range(3):
-                                    try:
-                                        answer = generate_twin_response(prompt, temp_pred, top_p, model_name)
-                                        break
-                                    except Exception as e:
-                                        print(f"⚠️ Twin generation failed (attempt {attempt+1}/3): {e}")
-                                        time.sleep(2)
+                            for attempt in range(3):
+                                try:
+                                    combined_text = generate_twin_response(
+                                        prompt,
+                                        temp_pred,
+                                        top_p,
+                                        model_name,
+                                    )
+                                    break
+                                except Exception as e:
+                                    print(f"⚠️ Twin generation failed (attempt {attempt+1}/3): {e}")
+                                    time.sleep(2)
 
-                                if answer is None:
-                                    print("⚠️ Skipping sample because twin generation failed")
-                                    continue
-
-                                answers.append(answer)
-
-                            # Combine all answers
-                            combined_text = "\n".join(answers)
+                            if combined_text is None:
+                                print("⚠️ Skipping sample because twin generation failed")
+                                continue
 
                             # STEP 2: reconstruct traits from ALL answers
                             reconstruction_prompt = f"""
@@ -164,25 +149,19 @@ Answers:
 
 Estimate each trait on a continuous scale from 0.00 to 1.00, where higher values indicate stronger expression of the trait.
 
-Use the full range of the scale when justified by the evidence.
-Provide precise numerical estimates with two decimal places.
-Do not round traits to broad categories such as 0.3, 0.5, or 0.7 unless the evidence genuinely supports those exact values.
-
-Infer the person's relative standing compared to the general population.
-Base your estimates only on information contained in the answers.
+Base your estimates only on the behavioral evidence contained in the answers.
 
 IMPORTANT:
 - Output exactly one numeric value per trait
-- Use decimal numbers with four digits after the decimal point
 - No explanations
 - No additional text
 
 Format:
-Extraversion: 0.6325
-Agreeableness: 0.7194
-Conscientiousness: 0.5493
-Neuroticism: 0.8225
-Openness: 0.6723
+Extraversion: <value>
+Agreeableness: <value>
+Conscientiousness: <value>
+Neuroticism: <value>
+Openness: <value>
 """
 
                             # =========================================================
@@ -194,7 +173,12 @@ Openness: 0.6723
 
                             for attempt in range(3):
                                 try:
-                                    generated = generate_judge_prediction(reconstruction_prompt, 0, top_p, JUDGE_MODEL)
+                                    generated = generate_judge_response(
+                                        reconstruction_prompt,
+                                        0,
+                                        top_p,
+                                        JUDGE_MODEL,
+                                    )
                                     break
                                 except Exception as e:
                                     print(f"⚠️ Judge reconstruction failed (attempt {attempt+1}/3): {e}")

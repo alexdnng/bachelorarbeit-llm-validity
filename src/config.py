@@ -98,14 +98,14 @@ GROUND_TRUTH_COLUMNS = [
 ]
 
 QUESTIONS = [
-        "Do you see yourself as someone who is reserved?",
-        "Do you see yourself as someone who is generally trusting?",
-        "Do you see yourself as someone who tends to be lazy?",
-        "Do you see yourself as someone who is relaxed and handles stress well?",
-        "Do you see yourself as someone who has few artistic interests?",
-        "Do you see yourself as someone who is outgoing and sociable?",
-        "Do you see yourself as someone who tends to find fault with others?",
-        "Do you see yourself as someone who does a thorough job?",
-        "Do you see yourself as someone who gets nervous easily?",
-        "Do you see yourself as someone who has an active imagination?"
+        "1. Do you see yourself as someone who is reserved?",
+        "2. Do you see yourself as someone who is generally trusting?",
+        "3. Do you see yourself as someone who tends to be lazy?",
+        "4. Do you see yourself as someone who is relaxed and handles stress well?",
+        "5. Do you see yourself as someone who has few artistic interests?",
+        "6. Do you see yourself as someone who is outgoing and sociable?",
+        "7. Do you see yourself as someone who tends to find fault with others?",
+        "8. Do you see yourself as someone who does a thorough job?",
+        "9. Do you see yourself as someone who gets nervous easily?",
+        "10. Do you see yourself as someone who has an active imagination?"
     ]

@@ -68,22 +68,33 @@ def run():
 
                             if reasoning == "think":
                                 reasoning_instruction = """
-Before answering, consider how a person with the given psychological profile would think, feel, and behave.
+Before answering, form a mental model of the person described by the psychological profile.
 
-Provide only the final answer.
-Do not show any reasoning, analysis, or intermediate steps.
+Consider how this person would typically think, feel, and behave in everyday life.
+
+Answer the questions from this person's perspective.
+
+Provide only the final answers.
+Do not show any reasoning.
 """
                             elif reasoning == "cot":
                                 reasoning_instruction = """
-Before answering, carefully consider how a person with the given psychological profile would think, feel, and behave.
+Before answering, carefully analyze the psychological profile.
 
-Think step by step before answering.
+Reason step by step about how the traits combine to form a coherent personality.
 
-Provide only the final answer.
-Do not show any reasoning, analysis, or intermediate steps.
+Form a detailed mental model of the person and answer the questions from that person's perspective.
+
+Provide only the final answers.
+Do not show any reasoning.
 """
                             else:
-                                reasoning_instruction = "Answer directly."
+                                reasoning_instruction = """
+Answer each question immediately as the person would.
+
+Do not perform explicit analysis.
+Provide only the answers.
+"""
 
                             feature_lines = []
 
@@ -93,9 +104,7 @@ Do not show any reasoning, analysis, or intermediate steps.
 
                             feature_text = "\n".join(feature_lines)
 
-                            questions_text = "\n\n".join(
-                                [f"Question {idx+1}:\n{q}" for idx, q in enumerate(row["questions"])]
-                            )
+                            questions_text = "\n\n".join(row["questions"])
 
                             prompt = f"""
 You are simulating a real human participant.
@@ -142,10 +151,13 @@ IMPORTANT:
 
                             # STEP 2: reconstruct traits from ALL answers
                             reconstruction_prompt = f"""
-Based only on the answers below, estimate the person's Big Five personality traits.
+Based on the questions and answers below, estimate the person's Big Five personality traits.
+
+Questions:
+{questions_text}
 
 Answers:
-{combined_text}
+{combined_text.strip()}
 
 Estimate each trait on a continuous scale from 0.00 to 1.00, where higher values indicate stronger expression of the trait.
 
@@ -250,6 +262,48 @@ Openness: <value>
                             continue
 
                         # Convert to numpy arrays
+                        pred_array = np.array(predictions, dtype=float)
+                        true_array = np.array(ground_truth, dtype=float)
+
+                        trait_names = [
+                            "Extraversion",
+                            "Agreeableness",
+                            "Conscientiousness",
+                            "Neuroticism",
+                            "Openness",
+                        ]
+
+                        trait_correlations = {}
+
+                        for i, trait in enumerate(trait_names):
+                            pred_trait = pred_array[:, i]
+                            true_trait = true_array[:, i]
+
+                            if np.std(pred_trait) == 0 or np.std(true_trait) == 0:
+                                trait_correlations[trait] = np.nan
+                            else:
+                                r, _ = pearsonr(pred_trait, true_trait)
+                                trait_correlations[trait] = float(r)
+
+                        trait_spearman = {}
+
+                        for i, trait in enumerate(trait_names):
+                            pred_trait = pred_array[:, i]
+                            true_trait = true_array[:, i]
+
+                            if np.std(pred_trait) == 0 or np.std(true_trait) == 0:
+                                trait_spearman[trait] = np.nan
+                            else:
+                                r, _ = spearmanr(pred_trait, true_trait)
+                                trait_spearman[trait] = float(r)
+
+                        mean_trait_pearson = float(
+                            np.nanmean(list(trait_correlations.values()))
+                        )
+                        mean_trait_spearman = float(
+                            np.nanmean(list(trait_spearman.values()))
+                        )
+
                         flat_pred = np.array(predictions, dtype=float).flatten()
                         flat_true = np.array(ground_truth, dtype=float).flatten()
 
@@ -279,10 +333,15 @@ Openness: <value>
 
                         print(f"✅ Pearson correlation computed: {pearson_corr}")
                         print(f"✅ Spearman correlation computed: {spearman_corr}")
+                        print("✅ Trait-specific Pearson correlations:")
+                        for trait, value in trait_correlations.items():
+                            print(f"   {trait}: {value}")
+                        print(f"✅ Mean trait Pearson correlation: {mean_trait_pearson}")
+                        print(f"✅ Mean trait Spearman correlation: {mean_trait_spearman}")
 
                         print(
                             f"Saving aggregate: temp_pred={temp_pred}, reasoning={reasoning}, "
-                            f"top_p={top_p}, pearson={pearson_corr}, spearman={spearman_corr}, "
+                            f"top_p={top_p}, pearson_mean={mean_trait_pearson}, global_flat={pearson_corr}, spearman_mean={mean_trait_spearman}, spearman_flat={spearman_corr}, "
                             f"n={len(predictions)}"
                         )
 
@@ -295,8 +354,20 @@ Openness: <value>
                             "reasoning": reasoning,
                             "run": run_idx,
                             "samplesize": samplesize,
-                            "pearson_correlation": float(pearson_corr),
-                            "spearman_correlation": float(spearman_corr),
+                            "pearson_global_flat": float(pearson_corr),
+                            "pearson_mean": mean_trait_pearson,
+                            "pearson_extraversion": trait_correlations["Extraversion"],
+                            "pearson_agreeableness": trait_correlations["Agreeableness"],
+                            "pearson_conscientiousness": trait_correlations["Conscientiousness"],
+                            "pearson_neuroticism": trait_correlations["Neuroticism"],
+                            "pearson_openness": trait_correlations["Openness"],
+                            "spearman_global_flat": float(spearman_corr),
+                            "spearman_mean": mean_trait_spearman,
+                            "spearman_extraversion": trait_spearman["Extraversion"],
+                            "spearman_agreeableness": trait_spearman["Agreeableness"],
+                            "spearman_conscientiousness": trait_spearman["Conscientiousness"],
+                            "spearman_neuroticism": trait_spearman["Neuroticism"],
+                            "spearman_openness": trait_spearman["Openness"],
                             "n_samples": len(predictions),
                             "type": "aggregate"
                         })

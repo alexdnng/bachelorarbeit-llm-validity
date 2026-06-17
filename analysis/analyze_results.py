@@ -16,13 +16,13 @@ df = pd.read_csv(FILE_PATH)
 print("COLUMNS:", df.columns)
 print("SHAPE:", df.shape)
 
-if "pearson_correlation" in df.columns:
-    print("Pearson Werte:")
-    print(df["pearson_correlation"].describe())
+if "pearson_mean" in df.columns:
+    print("Pearson Mean Werte:")
+    print(df["pearson_mean"].describe())
 
-if "spearman_correlation" in df.columns:
-    print("Spearman Werte:")
-    print(df["spearman_correlation"].describe())
+if "spearman_mean" in df.columns:
+    print("Spearman Mean Werte:")
+    print(df["spearman_mean"].describe())
 
 print("=== Überblick ===")
 print(df.head())
@@ -39,14 +39,14 @@ else:
     samples = df.copy()
 
     # aggregate selbst berechnen (nur wenn Pearson existiert)
-    if "pearson_correlation" in df.columns:
-        agg = df[df["pearson_correlation"].notna()].copy()
+    if "pearson_mean" in df.columns:
+        agg = df[df["pearson_mean"].notna()].copy()
     else:
         agg = pd.DataFrame(columns=df.columns)
 
 # 🔧 Fallback: Falls keine Pearson correlation existiert
-if "pearson_correlation" not in df.columns:
-    print("⚠️ Keine 'pearson_correlation' Spalte gefunden – Heatmap wird übersprungen")
+if "pearson_mean" not in df.columns:
+    print("⚠️ Keine 'pearson_mean' Spalte gefunden – Heatmap wird übersprungen")
 
 
 print("Anzahl agg rows:", len(agg))
@@ -183,16 +183,16 @@ if "reasoning" in samples.columns:
 # 🔥 Heatmaps (Pearson + Spearman)
 # -----------------------------
 # 🔥 Heatmaps nur wenn Correlation-Daten vorhanden
-if "pearson_correlation" in agg.columns and not agg.empty:
+if "pearson_mean" in agg.columns and not agg.empty:
     # Ensure numeric types for pivot axes
-    for col in ["temp_pred", "temperature", "pearson_correlation", "spearman_correlation"]:
+    for col in ["temp_pred", "temperature", "pearson_mean", "spearman_mean"]:
         if col in agg.columns:
             agg[col] = pd.to_numeric(agg[col], errors="coerce")
 
     # Drop rows with missing correlation or axes
     pivot_index = "temp_pred" if "temp_pred" in agg.columns else "temperature"
     if "reasoning" in agg.columns:
-        agg_clean = agg.dropna(subset=[pivot_index, "reasoning", "pearson_correlation", "spearman_correlation"]).copy()
+        agg_clean = agg.dropna(subset=[pivot_index, "reasoning", "pearson_mean", "spearman_mean"]).copy()
     else:
         print("⚠️ 'reasoning' fehlt für Heatmap")
         agg_clean = pd.DataFrame()
@@ -208,7 +208,7 @@ if "pearson_correlation" in agg.columns and not agg.empty:
     pearson_pivot = agg_clean.pivot_table(
         index=pivot_index,
         columns="reasoning",
-        values="pearson_correlation",
+        values="pearson_mean",
         aggfunc="mean"
     )
 
@@ -231,7 +231,7 @@ if "pearson_correlation" in agg.columns and not agg.empty:
 
         plt.xlabel("Reasoning Mode")
         plt.ylabel(pivot_index)
-        plt.title("Pearson Correlation Heatmap")
+        plt.title("Mean Trait Pearson Heatmap")
 
         plt.tight_layout()
         plt.savefig(f"analysis/heatmap_pearson_{base_name}.png")
@@ -243,7 +243,7 @@ if "pearson_correlation" in agg.columns and not agg.empty:
     spearman_pivot = agg_clean.pivot_table(
         index=pivot_index,
         columns="reasoning",
-        values="spearman_correlation",
+        values="spearman_mean",
         aggfunc="mean"
     )
 
@@ -266,7 +266,7 @@ if "pearson_correlation" in agg.columns and not agg.empty:
 
         plt.xlabel("Reasoning Mode")
         plt.ylabel(pivot_index)
-        plt.title("Spearman Correlation Heatmap")
+        plt.title("Mean Trait Spearman Heatmap")
 
         plt.tight_layout()
         plt.savefig(f"analysis/heatmap_spearman_{base_name}.png")

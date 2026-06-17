@@ -4,7 +4,7 @@ import os
 import pingouin as pg
 
 # 👉 Pfad zu deiner neuesten Datei anpassen
-FILE_PATH = "results/output_4.csv"  # 🔁 ggf. anpassen auf neueste Datei
+FILE_PATH = "results/output_6.csv"  # 🔁 ggf. anpassen auf neueste Datei
 # 🔥 Dateiname dynamisch extrahieren
 base_name = os.path.splitext(os.path.basename(FILE_PATH))[0]
 

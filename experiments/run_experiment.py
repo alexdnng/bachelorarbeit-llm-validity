@@ -74,7 +74,7 @@ Consider how this person would typically think, feel, and behave in everyday lif
 
 Answer the questions from this person's perspective.
 
-Provide only the final answers.
+Provide only the person's answers.
 Do not show any reasoning.
 """
                             elif reasoning == "cot":
@@ -85,7 +85,7 @@ Reason step by step about how the traits combine to form a coherent personality.
 
 Form a detailed mental model of the person and answer the questions from that person's perspective.
 
-Provide only the final answers.
+Provide only the person's answers.
 Do not show any reasoning.
 """
                             else:

@@ -1,12 +1,39 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+import re
 import pingouin as pg
 
-# 👉 Pfad zu deiner neuesten Datei anpassen
-FILE_PATH = "results/output_6.csv"  # 🔁 ggf. anpassen auf neueste Datei
-# 🔥 Dateiname dynamisch extrahieren
-base_name = os.path.splitext(os.path.basename(FILE_PATH))[0]
+
+# =========================================================
+# Automatisch neueste output_X.csv finden
+# =========================================================
+results_dir = "results"
+
+output_files = []
+
+for filename in os.listdir(results_dir):
+    match = re.match(r"output_(\d+)\.csv$", filename)
+    if match:
+        output_files.append((int(match.group(1)), filename))
+
+if not output_files:
+    raise FileNotFoundError("Keine output_X.csv Datei im results-Ordner gefunden")
+
+latest_index, latest_file = max(output_files, key=lambda x: x[0])
+
+FILE_PATH = os.path.join(results_dir, latest_file)
+base_name = os.path.splitext(latest_file)[0]
+
+print(f"📂 Verwende Datei: {FILE_PATH}")
+
+# =========================================================
+# Analyseordner für diesen Output erstellen
+# =========================================================
+analysis_output_dir = os.path.join("analysis", base_name)
+os.makedirs(analysis_output_dir, exist_ok=True)
+
+print(f"📁 Ergebnisse werden gespeichert in: {analysis_output_dir}")
 
 
 # 🔧 1. Datei laden
@@ -95,7 +122,10 @@ if available_traits:
     print(trait_mae_df)
 
     trait_mae_df.to_csv(
-        f"analysis/per_trait_mae_{base_name}.csv",
+        os.path.join(
+            analysis_output_dir,
+            f"per_trait_mae_{base_name}.csv"
+        ),
         index=False,
     )
 
@@ -109,7 +139,12 @@ if available_traits:
     plt.xlabel("Trait")
     plt.title("Per-Trait Prediction Error")
     plt.tight_layout()
-    plt.savefig(f"analysis/per_trait_mae_{base_name}.png")
+    plt.savefig(
+        os.path.join(
+            analysis_output_dir,
+            f"per_trait_mae_{base_name}.png"
+        )
+    )
     plt.close()
 
 else:
@@ -158,8 +193,12 @@ plt.xlabel("Temperature")
 plt.ylabel("Mean MAE")
 plt.title("Effect of Temperature on MAE")
 
-os.makedirs("analysis", exist_ok=True)
-plt.savefig(f"analysis/temperature_vs_mae_{base_name}.png")
+plt.savefig(
+    os.path.join(
+        analysis_output_dir,
+        f"temperature_vs_mae_{base_name}.png"
+    )
+)
 plt.close()
 
 # -----------------------------
@@ -176,7 +215,12 @@ if "reasoning" in samples.columns:
     plt.ylabel("Mean MAE")
     plt.title("Effect of Reasoning on MAE")
 
-    plt.savefig(f"analysis/reasoning_vs_mae_{base_name}.png")
+    plt.savefig(
+        os.path.join(
+            analysis_output_dir,
+            f"reasoning_vs_mae_{base_name}.png"
+        )
+    )
     plt.close()
 
 # -----------------------------
@@ -234,7 +278,12 @@ if "pearson_mean" in agg.columns and not agg.empty:
         plt.title("Mean Trait Pearson Heatmap")
 
         plt.tight_layout()
-        plt.savefig(f"analysis/heatmap_pearson_{base_name}.png")
+        plt.savefig(
+            os.path.join(
+                analysis_output_dir,
+                f"heatmap_pearson_{base_name}.png"
+            )
+        )
         plt.close()
 
     # =========================================================
@@ -269,7 +318,12 @@ if "pearson_mean" in agg.columns and not agg.empty:
         plt.title("Mean Trait Spearman Heatmap")
 
         plt.tight_layout()
-        plt.savefig(f"analysis/heatmap_spearman_{base_name}.png")
+        plt.savefig(
+            os.path.join(
+                analysis_output_dir,
+                f"heatmap_spearman_{base_name}.png"
+            )
+        )
         plt.close()
 else:
     print("⚠️ Heatmaps übersprungen (keine Correlation-Daten)")
@@ -301,7 +355,10 @@ if all(col in samples.columns for col in required_cols):
     print(variability.head())
 
     variability.to_csv(
-        f"analysis/trait_variability_{base_name}.csv",
+        os.path.join(
+            analysis_output_dir,
+            f"trait_variability_{base_name}.csv"
+        ),
         index=False
     )
 
@@ -408,7 +465,10 @@ if "run_id" in samples.columns:
         print(icc_df.head())
 
         icc_df.to_csv(
-            f"analysis/icc_results_{base_name}.csv",
+            os.path.join(
+                analysis_output_dir,
+                f"icc_results_{base_name}.csv"
+            ),
             index=False
         )
 
@@ -423,7 +483,10 @@ if "run_id" in samples.columns:
         print(mean_icc)
 
         mean_icc.to_csv(
-            f"analysis/mean_icc_{base_name}.csv",
+            os.path.join(
+                analysis_output_dir,
+                f"mean_icc_{base_name}.csv"
+            ),
             index=False
         )
 
@@ -431,4 +494,4 @@ else:
     print("⚠️ run_id missing - ICC skipped")
 
 print("\n✅ Analyse abgeschlossen!")
-print(f"📊 Plots gespeichert im analysis/ Ordner für {base_name}")
+print(f"📊 Ergebnisse gespeichert in: {analysis_output_dir}")

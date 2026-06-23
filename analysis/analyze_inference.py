@@ -184,16 +184,37 @@ print(f"Aggregate rows: {len(agg)}")
 # Descriptive Statistics
 # ============================================================
 
-desc = agg.groupby(
+# Pearson / Spearman aus den Aggregate-Zeilen
+desc_corr = agg.groupby(
     ["temperature", "reasoning"]
 )[[
     "pearson_mean",
-    "spearman_mean",
-    "mae"
+    "spearman_mean"
 ]].agg(["mean", "std"])
 
-desc.to_csv(OUTPUT_DIR / "descriptive_stats.csv")
+# MAE aus den Sample-Zeilen berechnen
+sample_desc = df[df["type"] == "sample"].copy()
 
+desc_mae = (
+    sample_desc
+    .groupby(
+        ["temperature", "reasoning"]
+    )["mae"]
+    .agg(["mean", "std"])
+)
+
+# gleiche MultiIndex-Struktur wie desc_corr erzeugen
+desc_mae.columns = pd.MultiIndex.from_product(
+    [["mae"], desc_mae.columns]
+)
+
+
+# Zusammenführen
+desc = desc_corr.join(desc_mae)
+
+desc.to_csv(
+    OUTPUT_DIR / "descriptive_stats.csv"
+)
 
 # ============================================================
 # Pearson

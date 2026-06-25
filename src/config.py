@@ -8,6 +8,10 @@ OPENAI_MODELS = [
     "gpt-4.1-mini"
 ]
 
+GEMINI_MODELS = [
+    "gemini-2.5-flash"
+]
+
 OLLAMA_MODELS = [
     "llama3.1:8b"
 ]
@@ -17,6 +21,7 @@ JUDGE_MODEL="gpt-4.1-mini"
 # Select active model group
 #MODELS = OLLAMA_MODELS
 MODELS = OPENAI_MODELS
+MODELS = GEMINI_MODELS
 
 
 # =====================================================
@@ -33,13 +38,13 @@ REASONING_MODES = [
 
 TOP_P_VALUES = [1.0]
 
-samplesize = 100
+samplesize = 2
 
 MAX_PROFILE_GENERATION_TOKENS = 300
 MAX_TWIN_RESPONSE_TOKENS = 2000
 MAX_JUDGE_TOKENS = 300
 
-N_RUNS_PER_SETTING = 5
+N_RUNS_PER_SETTING = 1
 
 # =====================================================
 # DIGITAL TWIN FEATURE CONFIGURATION

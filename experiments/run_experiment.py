@@ -120,10 +120,13 @@ Instruction:
 
 Answer all of the following questions as this person would.
 
+Answer every mumbered question in order.
+
 {questions_text}
 
 IMPORTANT:
 - Give natural and realistic answers
+- Do not stop until all questions have been answered
 - Answer consistently with the psychological profile
 - Do not mention the profile explicitly
 - Provide one answer for each question
@@ -148,6 +151,7 @@ IMPORTANT:
                             if combined_text is None:
                                 print("⚠️ Skipping sample because twin generation failed")
                                 continue
+                            
 
                             # STEP 2: reconstruct traits from ALL answers
                             reconstruction_prompt = f"""

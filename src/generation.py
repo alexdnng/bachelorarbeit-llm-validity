@@ -2,6 +2,7 @@ import os
 
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage
 from src.config import (
@@ -15,12 +16,12 @@ load_dotenv()
 MODEL_PROVIDER = os.getenv("MODEL_PROVIDER", "openai")
 
 
-def generate_profile(prompt, temperature, top_p, model_name, max_tokens):
+def generate_profile(prompt, temperature, top_p, model_name, max_tokens, provider):
 
     # -------------------------
     # OPENAI
     # -------------------------
-    if MODEL_PROVIDER == "openai":
+    if provider == "openai":
 
         llm = ChatOpenAI(
             model=model_name,
@@ -32,7 +33,7 @@ def generate_profile(prompt, temperature, top_p, model_name, max_tokens):
     # -------------------------
     # OLLAMA
     # -------------------------
-    elif MODEL_PROVIDER == "ollama":
+    elif provider == "ollama":
 
         llm = ChatOllama(
             model=model_name,
@@ -40,14 +41,24 @@ def generate_profile(prompt, temperature, top_p, model_name, max_tokens):
             num_predict=max_tokens,
             top_p=top_p
         )
+    elif provider == "gemini":
+        
+        llm = ChatGoogleGenerativeAI(
+            model=model_name,
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+            top_p=top_p,
+            disable_streaming=True,
+            thinking_budget=0,
+        )
 
     else:
-        raise ValueError(f"Invalid MODEL_PROVIDER: {MODEL_PROVIDER}")
+        raise ValueError(f"Invalid provider: {provider}")
 
     response = llm.invoke([
         HumanMessage(content=prompt)
     ])
-
+    
     return response.content
 
 
@@ -72,6 +83,7 @@ Do NOT mention numbers or trait labels.
         top_p,
         model_name,
         MAX_PROFILE_GENERATION_TOKENS,
+        "openai"
     )
 
 
@@ -82,6 +94,7 @@ def generate_twin_response(prompt, temperature, top_p, model_name):
         top_p,
         model_name,
         MAX_TWIN_RESPONSE_TOKENS,
+        MODEL_PROVIDER
     )
 
 
@@ -92,4 +105,5 @@ def generate_judge_response(prompt, temperature, top_p, model_name):
         top_p,
         model_name,
         MAX_JUDGE_TOKENS,
+        "openai"
     )

@@ -5,3 +5,8 @@ __pycache__/
 results/
 data/mega_persona_summary_csv/
 .DS_Store
+analysis/output_1/
+analysis/output_3/
+analysis/output_4/
+analysis/output_8/
+analysis/output_9/

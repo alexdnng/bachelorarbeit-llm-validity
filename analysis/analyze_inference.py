@@ -15,31 +15,36 @@ import re
 # Automatically find newest output_X.csv
 # ============================================================
 
+USE_LATEST_OUTPUT = False
+MANUAL_FILE = "output_9.csv"
+
 results_dir = "results"
 
-output_files = []
+if USE_LATEST_OUTPUT:
 
-for filename in os.listdir(results_dir):
-    match = re.match(r"output_(\d+)\.csv$", filename)
-    if match:
-        output_files.append((int(match.group(1)), filename))
+    output_files = []
 
-if not output_files:
-    raise FileNotFoundError(
-        "No output_X.csv file found in results directory"
-    )
+    for filename in os.listdir(results_dir):
+        match = re.match(r"output_(\d+)\.csv$", filename)
+        if match:
+            output_files.append((int(match.group(1)), filename))
 
-latest_index, latest_file = max(
-    output_files,
-    key=lambda x: x[0]
-)
+    if not output_files:
+        raise FileNotFoundError("Keine output_X.csv Datei im results-Ordner gefunden")
 
-FILE_PATH = Path(results_dir) / latest_file
-BASE_NAME = Path(latest_file).stem
+    _, selected_file = max(output_files, key=lambda x: x[0])
+
+else:
+
+    selected_file = MANUAL_FILE
+
+FILE_PATH = os.path.join(results_dir, selected_file)
+base_name = os.path.splitext(selected_file)[0]
+
 
 print(f"📂 Using file: {FILE_PATH}")
 
-OUTPUT_DIR = Path("analysis") / BASE_NAME / "inference_results"
+OUTPUT_DIR = Path("analysis") / base_name / "inference_results"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 print(f"📁 Saving results to: {OUTPUT_DIR}")
@@ -139,8 +144,20 @@ def save_interaction_plot(df, dependent_var, filename, ylabel):
     plt.ylabel(ylabel)
     plt.xlabel("Temperature")
     plt.tight_layout()
+    
+    png_path = OUTPUT_DIR / filename
+    pdf_path = png_path.with_suffix(".pdf")
 
-    plt.savefig(OUTPUT_DIR / filename)
+
+    plt.savefig(
+        png_path,
+        dpi=300,
+        bbox_inches="tight"
+    )
+    plt.savefig(
+        pdf_path,
+        bbox_inches="tight"
+    )
     plt.close()
 
 
@@ -214,6 +231,9 @@ desc = desc_corr.join(desc_mae)
 
 desc.to_csv(
     OUTPUT_DIR / "descriptive_stats.csv"
+)
+desc.round(3).to_excel(
+    OUTPUT_DIR / "descriptive_stats.xlsx"
 )
 
 # ============================================================
@@ -373,7 +393,38 @@ run_tukey_if_significant(
 # ============================================================
 # Save Results
 # ============================================================
+# ============================================================
+# Save Results
+# ============================================================
 
+anova_pearson_export = anova_pearson.copy()
+anova_spearman_export = anova_spearman.copy()
+anova_mae_export = anova_mae.copy()
+
+for df in [anova_pearson_export, anova_spearman_export, anova_mae_export]:
+
+    df["F"] = df["F"].round(3)
+    df["eta_sq"] = df["eta_sq"].round(3)
+    df["partial_eta_sq"] = df["partial_eta_sq"].round(3)
+
+    df["PR(>F)"] = df["PR(>F)"].apply(
+        lambda p: "< .001" if pd.notna(p) and p < 0.001 else f"{p:.3f}" if pd.notna(p) else ""
+    )
+
+anova_pearson_export.to_excel(
+    OUTPUT_DIR / "anova_pearson.xlsx",
+    index=True
+)
+
+anova_spearman_export.to_excel(
+    OUTPUT_DIR / "anova_spearman.xlsx",
+    index=True
+)
+
+anova_mae_export.to_excel(
+    OUTPUT_DIR / "anova_mae.xlsx",
+    index=True
+)
 anova_pearson.to_csv(
     OUTPUT_DIR / "anova_pearson.csv"
 )
@@ -386,6 +437,7 @@ anova_mae.to_csv(
     OUTPUT_DIR / "anova_mae.csv"
 )
 
+
 print("\nSaved files:")
 print(f"- {OUTPUT_DIR}/anova_pearson.csv")
 print(f"- {OUTPUT_DIR}/anova_spearman.csv")
@@ -394,4 +446,4 @@ print(f"- {OUTPUT_DIR}/descriptive_stats.csv")
 print(f"- {OUTPUT_DIR}/interaction_pearson.png")
 print(f"- {OUTPUT_DIR}/interaction_spearman.png")
 print(f"- {OUTPUT_DIR}/interaction_mae.png")
-print(f"\n✅ Inference analysis completed for {BASE_NAME}")
+print(f"\n✅ Inference analysis completed for {base_name}")

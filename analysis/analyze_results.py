@@ -1,29 +1,56 @@
 import pandas as pd
-import matplotlib.pyplot as plt
 import os
 import re
 import pingouin as pg
 
+import seaborn as sns
+
+import matplotlib.pyplot as plt
+
+plt.rcParams.update({
+    "font.size": 11,
+    "axes.labelsize": 12,
+    "axes.titlesize": 12,
+    "xtick.labelsize": 10,
+    "ytick.labelsize": 10,
+    "legend.fontsize": 10,
+    "figure.dpi": 300,
+    "savefig.dpi": 300,
+})
 
 # =========================================================
 # Automatisch neueste output_X.csv finden
 # =========================================================
+# =========================================================
+# Datei auswählen
+# =========================================================
+
+USE_LATEST_OUTPUT = False
+MANUAL_FILE = "output_9.csv"
+
 results_dir = "results"
 
-output_files = []
+if USE_LATEST_OUTPUT:
 
-for filename in os.listdir(results_dir):
-    match = re.match(r"output_(\d+)\.csv$", filename)
-    if match:
-        output_files.append((int(match.group(1)), filename))
+    output_files = []
 
-if not output_files:
-    raise FileNotFoundError("Keine output_X.csv Datei im results-Ordner gefunden")
+    for filename in os.listdir(results_dir):
+        match = re.match(r"output_(\d+)\.csv$", filename)
+        if match:
+            output_files.append((int(match.group(1)), filename))
 
-latest_index, latest_file = max(output_files, key=lambda x: x[0])
+    if not output_files:
+        raise FileNotFoundError("Keine output_X.csv Datei im results-Ordner gefunden")
 
-FILE_PATH = os.path.join(results_dir, latest_file)
-base_name = os.path.splitext(latest_file)[0]
+    _, selected_file = max(output_files, key=lambda x: x[0])
+
+else:
+
+    selected_file = MANUAL_FILE
+
+FILE_PATH = os.path.join(results_dir, selected_file)
+base_name = os.path.splitext(selected_file)[0]
+
 
 print(f"📂 Verwende Datei: {FILE_PATH}")
 
@@ -127,7 +154,17 @@ if available_traits:
             f"per_trait_mae_{base_name}.csv"
         ),
         index=False,
+        float_format="%.3f"
     )
+    trait_mae_df.to_excel(
+        os.path.join(
+            analysis_output_dir,
+            f"per_trait_mae_{base_name}.xlsx"
+        ),
+        index=False,
+        float_format="%.3f"
+    )
+    
 
     plt.figure(figsize=(8, 4))
     plt.bar(
@@ -137,14 +174,24 @@ if available_traits:
     )
     plt.ylabel("Mean MAE")
     plt.xlabel("Trait")
-    plt.title("Per-Trait Prediction Error")
+    #plt.title("Per-Trait Prediction Error")
     plt.tight_layout()
     plt.savefig(
         os.path.join(
             analysis_output_dir,
             f"per_trait_mae_{base_name}.png"
-        )
+        ),
+        dpi=300,
+        bbox_inches="tight"
     )
+    
+    plt.savefig(
+    os.path.join(
+        analysis_output_dir,
+        f"per_trait_mae_{base_name}.pdf"
+    ),
+    bbox_inches="tight"
+)
     plt.close()
 
 else:
@@ -182,7 +229,7 @@ else:
 # -----------------------------
 # 📊 Plot: Temperature vs MAE
 # -----------------------------
-plt.figure()
+plt.figure(figsize=(8, 5))
 plt.errorbar(
     temp_group["temperature"],
     temp_group["mean"],
@@ -191,13 +238,25 @@ plt.errorbar(
 )
 plt.xlabel("Temperature")
 plt.ylabel("Mean MAE")
-plt.title("Effect of Temperature on MAE")
+#plt.title("Effect of Temperature on MAE")
+
+plt.tight_layout()
 
 plt.savefig(
     os.path.join(
         analysis_output_dir,
         f"temperature_vs_mae_{base_name}.png"
-    )
+    ),
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.savefig(
+    os.path.join(
+        analysis_output_dir,
+        f"temperature_vs_mae_{base_name}.pdf"
+    ),
+    bbox_inches="tight"
 )
 plt.close()
 
@@ -205,7 +264,7 @@ plt.close()
 # 📊 Plot: Reasoning vs MAE
 # -----------------------------
 if "reasoning" in samples.columns:
-    plt.figure()
+    plt.figure(figsize=(8, 5))
     plt.bar(
         reasoning_group["reasoning"],
         reasoning_group["mean"],
@@ -213,14 +272,26 @@ if "reasoning" in samples.columns:
     )
     plt.xlabel("Reasoning Mode")
     plt.ylabel("Mean MAE")
-    plt.title("Effect of Reasoning on MAE")
+    #plt.title("Effect of Reasoning on MAE")
+    
+    plt.tight_layout()
 
     plt.savefig(
         os.path.join(
             analysis_output_dir,
             f"reasoning_vs_mae_{base_name}.png"
-        )
+        ),
+        dpi=300,
+        bbox_inches="tight"
     )
+    
+    plt.savefig(
+    os.path.join(
+        analysis_output_dir,
+        f"reasoning_vs_mae_{base_name}.pdf"
+    ),
+    bbox_inches="tight"
+)
     plt.close()
 
 # -----------------------------
@@ -263,28 +334,40 @@ if "pearson_mean" in agg.columns and not agg.empty:
     if pearson_pivot.empty or pearson_pivot.isna().all().all():
         print("⚠️ Pearson Pivot leer oder nur NaN – keine Heatmap möglich")
     else:
-        plt.figure()
+        plt.figure(figsize=(7, 5))
 
-        data = pearson_pivot.fillna(0).values
+        sns.heatmap(
+            pearson_pivot,
+            annot=True,
+            fmt=".2f",
+            cmap="viridis",
+            cbar_kws={"label": "Pearson correlation"}
+        )
 
-        im = plt.imshow(data, aspect='auto')
-        plt.colorbar(im, label="Pearson Correlation")
-
-        plt.xticks(range(len(pearson_pivot.columns)), [str(c) for c in pearson_pivot.columns])
-        plt.yticks(range(len(pearson_pivot.index)), [round(i, 3) for i in pearson_pivot.index])
-
-        plt.xlabel("Reasoning Mode")
-        plt.ylabel(pivot_index)
-        plt.title("Mean Trait Pearson Heatmap")
+        plt.xlabel("Reasoning")
+        plt.ylabel("Temperature")
 
         plt.tight_layout()
+
         plt.savefig(
             os.path.join(
                 analysis_output_dir,
                 f"heatmap_pearson_{base_name}.png"
-            )
+            ),
+            dpi=300,
+            bbox_inches="tight"
         )
+
+        plt.savefig(
+            os.path.join(
+                analysis_output_dir,
+                f"heatmap_pearson_{base_name}.pdf"
+            ),
+            bbox_inches="tight"
+        )
+
         plt.close()
+        
 
     # =========================================================
     # SPEARMAN HEATMAP
@@ -303,28 +386,40 @@ if "pearson_mean" in agg.columns and not agg.empty:
     if spearman_pivot.empty or spearman_pivot.isna().all().all():
         print("⚠️ Spearman Pivot leer oder nur NaN – keine Heatmap möglich")
     else:
-        plt.figure()
+        plt.figure(figsize=(7, 5))
 
-        data = spearman_pivot.fillna(0).values
+        sns.heatmap(
+            spearman_pivot,
+            annot=True,
+            fmt=".2f",
+            cmap="viridis",
+            cbar_kws={"label": "Spearman correlation"}
+        )
 
-        im = plt.imshow(data, aspect='auto')
-        plt.colorbar(im, label="Spearman Correlation")
-
-        plt.xticks(range(len(spearman_pivot.columns)), [str(c) for c in spearman_pivot.columns])
-        plt.yticks(range(len(spearman_pivot.index)), [round(i, 3) for i in spearman_pivot.index])
-
-        plt.xlabel("Reasoning Mode")
-        plt.ylabel(pivot_index)
-        plt.title("Mean Trait Spearman Heatmap")
+        plt.xlabel("Reasoning")
+        plt.ylabel("Temperature")
 
         plt.tight_layout()
+
         plt.savefig(
             os.path.join(
                 analysis_output_dir,
                 f"heatmap_spearman_{base_name}.png"
-            )
+            ),
+            dpi=300,
+            bbox_inches="tight"
         )
+
+        plt.savefig(
+            os.path.join(
+                analysis_output_dir,
+                f"heatmap_spearman_{base_name}.pdf"
+            ),
+            bbox_inches="tight"
+        )
+
         plt.close()
+        
 else:
     print("⚠️ Heatmaps übersprungen (keine Correlation-Daten)")
 
@@ -359,7 +454,16 @@ if all(col in samples.columns for col in required_cols):
             analysis_output_dir,
             f"trait_variability_{base_name}.csv"
         ),
-        index=False
+        index=False,
+        float_format="%.3f"
+    )
+    variability.to_excel(
+        os.path.join(
+            analysis_output_dir,
+            f"trait_variability_{base_name}.xlsx"
+        ),
+        index=False,
+        float_format="%.3f"
     )
 
     temp_variability = (
@@ -463,13 +567,25 @@ if "run_id" in samples.columns:
 
         print("\n=== ICC Results ===")
         print(icc_df.head())
+        
+        icc_export = icc_df.copy()
+            
+        icc_export["icc"] = icc_export["icc"].round(3)
+        
 
-        icc_df.to_csv(
+        icc_export.to_csv(
             os.path.join(
                 analysis_output_dir,
                 f"icc_results_{base_name}.csv"
             ),
             index=False
+        )
+        icc_export.to_excel(
+            os.path.join(
+                analysis_output_dir,
+                f"icc_results_{base_name}.xlsx"
+            ),
+            index=False,
         )
 
         mean_icc = (
@@ -487,8 +603,18 @@ if "run_id" in samples.columns:
                 analysis_output_dir,
                 f"mean_icc_{base_name}.csv"
             ),
-            index=False
+            index=False,
+            float_format="%.3f"
         )
+        mean_icc.to_excel(
+            os.path.join(
+                analysis_output_dir,
+                f"mean_icc_{base_name}.xlsx"
+            ),
+            index=False,
+            float_format="%.3f"
+        )
+        
 
 else:
     print("⚠️ run_id missing - ICC skipped")

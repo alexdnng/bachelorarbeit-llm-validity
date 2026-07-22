@@ -16,7 +16,7 @@ import re
 # ============================================================
 
 USE_LATEST_OUTPUT = False
-MANUAL_FILE = "output_9.csv"
+MANUAL_FILE = "output_8.csv"
 
 results_dir = "results"
 
@@ -161,6 +161,75 @@ def save_interaction_plot(df, dependent_var, filename, ylabel):
     plt.close()
 
 
+
+def save_tukey_results(df, variable, factor, anova_table, filename):
+    effect_name = f"C({factor})"
+
+    if effect_name not in anova_table.index:
+        return
+
+    p = anova_table.loc[effect_name, "PR(>F)"]
+
+    if p >= 0.05:
+        return
+
+    tukey = pairwise_tukeyhsd(
+        endog=df[variable],
+        groups=df[factor],
+        alpha=0.05
+    )
+
+    tukey_df = pd.DataFrame(
+        tukey.summary().data[1:],
+        columns=tukey.summary().data[0]
+    )
+
+    # ---------- Formatierung ----------
+    numeric_cols = [
+        "meandiff",
+        "p-adj",
+        "lower",
+        "upper"
+    ]
+
+    for col in numeric_cols:
+        tukey_df[col] = tukey_df[col].astype(float).round(3)
+
+    tukey_df["p-adj"] = tukey_df["p-adj"].apply(
+        lambda x: "< .001" if x < 0.001 else f"{x:.3f}"
+    )
+
+    tukey_df["reject"] = tukey_df["reject"].map(
+        {
+            True: "Ja",
+            False: "Nein"
+        }
+    )
+
+    tukey_df.rename(
+        columns={
+            "group1": "Gruppe 1",
+            "group2": "Gruppe 2",
+            "meandiff": "Mittlere Differenz",
+            "p-adj": "p",
+            "lower": "95%-KI unten",
+            "upper": "95%-KI oben",
+            "reject": "Signifikant"
+        },
+        inplace=True
+    )
+
+    tukey_df.to_excel(
+        OUTPUT_DIR / f"{filename}.xlsx",
+        index=False
+    )
+
+    tukey_df.to_csv(
+        OUTPUT_DIR / f"{filename}.csv",
+        index=False
+    )
+
+    print(f"Saved {filename}")
 
 def run_tukey_if_significant(df, variable, factor, anova_table):
     effect_name = f"C({factor})"
@@ -388,7 +457,53 @@ run_tukey_if_significant(
     "reasoning",
     anova_mae
 )
+save_tukey_results(
+    agg,
+    "pearson_mean",
+    "temperature",
+    anova_pearson,
+    "tukey_pearson_temperature"
+)
 
+save_tukey_results(
+    agg,
+    "pearson_mean",
+    "reasoning",
+    anova_pearson,
+    "tukey_pearson_reasoning"
+)
+
+save_tukey_results(
+    agg,
+    "spearman_mean",
+    "temperature",
+    anova_spearman,
+    "tukey_spearman_temperature"
+)
+
+save_tukey_results(
+    agg,
+    "spearman_mean",
+    "reasoning",
+    anova_spearman,
+    "tukey_spearman_reasoning"
+)
+
+save_tukey_results(
+    mae_agg,
+    "mae",
+    "temperature",
+    anova_mae,
+    "tukey_mae_temperature"
+)
+
+save_tukey_results(
+    mae_agg,
+    "mae",
+    "reasoning",
+    anova_mae,
+    "tukey_mae_reasoning"
+)
 
 # ============================================================
 # Save Results
